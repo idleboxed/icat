@@ -1,0 +1,34 @@
+site_name: icat
+#site_url: !ENV READTHEDOCS_CANONICAL_URL
+
+copyright: Copyright &copy; 2026, Igor Starikov
+
+#repo_url: https://some.com/user/repo
+#edit_uri: edit/master/docs/
+
+plugins:
+  - search
+  - navsorted
+
+theme:
+  name: material
+  palette:
+    primary: indigo
+  features:
+    - navigation.top
+    - toc.follow
+    - content.action.view
+    - content.action.edit
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - toc:
+      permalink: true

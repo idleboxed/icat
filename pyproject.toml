@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "iboxed-icat"
+version = "0.3.0"
+description = "PC ROM catalogue builder for IGUI"
+authors = [{ name = "Igor Starikov" }]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["requests>=2.32.4,<3", "Pillow>=11.3,<13", "py7zr>=1.1.3,<2", "rich>=14.1,<15"]
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+
+[project.scripts]
+icat = "icat.cli:main"
+
+[dependency-groups]
+tests = ["pytest>=8,<10", "pytest-responsemock>=1.1.1,<2", "time-machine>=3,<4"]
+dev = [{ include-group = "docs" }, { include-group = "tests" }, "ruff>=0.12,<1"]
+docs = ["mkdocs-material", "mkdocs-navsorted-plugin"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/icat"]
+
+[tool.hatch.build.targets.sdist]
+only-include = [
+    "src/icat", "tests", ".github/workflows/python-package.yml",
+    "docs", "mkdocs.yml", "README.md", "LICENSE", "pyproject.toml",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--import-mode=importlib", "--strict-config", "--strict-markers"]
+
+[tool.ruff]
+line-length = 119
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

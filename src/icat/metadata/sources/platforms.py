@@ -1,0 +1,48 @@
+"""External platform namespaces, not a list of hardware-supported cores."""
+
+from ...databases.libretro import MD_SYSTEM, NES_SYSTEM
+
+IGDB = {
+    "NES": 18,
+    "FDS": 51,
+    "GB": 33,
+    "GBC": 22,
+    "GBA": 24,
+    "MD": 29,
+    "32X": 30,
+    "SMS": 64,
+    "GG": 35,
+    "SG1000": 84,
+    "SNES": 19,
+    "PCE": 86,
+    "WS": 57,
+    "WSC": 123,
+    "A2600": 59,
+    "A5200": 66,
+    "A7800": 60,
+    "N64": 4,
+    "NDS": 20,
+}
+LIBRETRO = {
+    "PSX": "Sony - PlayStation",
+    "SCD": "Sega - Mega-CD - Sega CD",
+    "NES": NES_SYSTEM,
+    "FDS": "Nintendo - Family Computer Disk System",
+    "GB": "Nintendo - Game Boy",
+    "GBC": "Nintendo - Game Boy Color",
+    "GBA": "Nintendo - Game Boy Advance",
+    "MD": MD_SYSTEM,
+    "32X": "Sega - 32X",
+    "SMS": "Sega - Master System - Mark III",
+    "SG1000": "Sega - SG-1000",
+    "GG": "Sega - Game Gear",
+    "SNES": "Nintendo - Super Nintendo Entertainment System",
+    "PCE": "NEC - PC Engine - TurboGrafx 16",
+    "N64": "Nintendo - Nintendo 64",
+    "NDS": "Nintendo - Nintendo DS",
+    "WS": "Bandai - WonderSwan",
+    "WSC": "Bandai - WonderSwan Color",
+    "A2600": "Atari - 2600",
+    "A5200": "Atari - 5200",
+    "A7800": "Atari - 7800",
+}

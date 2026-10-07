@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"
+     role="img" aria-labelledby="title description">
+  <title id="title">icat</title>
+  <desc id="description">ROM catalogue builder. Pixel logo in graphite and muted plum on a transparent background.</desc>
+  <defs>
+    <path id="glyph-i" d="M2-2h1v1H2z M1 0h2v4h1v1H1V4h1V1H1z"/>
+    <path id="glyph-c" d="M1 0h4v1H1v3h4v1H1L0 4V1z"/>
+    <path id="glyph-a" d="M1 0h3l1 1v4H1L0 4V3l1-1h3V1H1z M1 3v1h3V3z"/>
+    <path id="glyph-t" d="M2-2h1v2h2v1H3v3h2v1H3L2 4V1H0V0h2z"/>
+  </defs>
+  <g id="symbol" transform="translate(112 64) scale(24)" fill-rule="evenodd">
+    <path fill="#444749" d="M5 1h4v1H5z M9 2h1v1H9z M10 3h1v6h-1z M3 2.5h4v1H3z M7 3.5h1v1H7z M8 4.5h1v6H8z M1 4h4v1h1v1h1v5H1z M2 5v5h4V6H5V5z"/>
+    <g fill="#9a8994">
+      <rect x="3" y="7.5" width="1.5" height="1.5"/>
+    </g>
+  </g>
+  <g id="wordmark" transform="translate(164 392) scale(8)" fill="#444749" fill-rule="evenodd">
+    <use href="#glyph-i" x="0"/>
+    <use href="#glyph-c" x="6"/>
+    <use href="#glyph-a" x="12"/>
+    <use href="#glyph-t" x="18"/>
+  </g>
+</svg>
