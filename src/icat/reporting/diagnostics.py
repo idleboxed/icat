@@ -15,6 +15,7 @@ from typing import Literal
 
 
 def get_iso_time() -> str:
+    """Return the current UTC timestamp in the operation journal's ISO format."""
     return datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
@@ -44,6 +45,7 @@ def _summarize(groups: dict[tuple, dict], identity: tuple, event: dict) -> int:
 
 
 def get_network_failure_reason(event: dict) -> str | None:
+    """Classify a diagnostic network failure, or return None for non-failures."""
     status = event.get("status")
 
     if event["kind"] == "http" and (
@@ -79,6 +81,7 @@ class Diagnostics:
         self.activities: dict[int, NetworkActivity] = {}
 
     def reset(self) -> None:
+        """Clear accumulated diagnostic events, counts and activity for a new run."""
 
         with self.lock:
             self.events.clear()
@@ -115,12 +118,14 @@ class Diagnostics:
                     self.activities[thread] = previous
 
     def get_activity_snapshot(self) -> tuple[NetworkActivity, ...]:
+        """Copy the current network activities while holding the diagnostics lock."""
 
         with self.lock:
             return tuple(self.activities.values())
 
     @contextmanager
     def capture_events(self, source: str, rom: str | None) -> Iterator[list[dict]]:
+        """Associate emitted diagnostics with one source and ROM until context exit."""
         issues: list[dict] = []
         token = self.context.set((source, rom, issues))
 
@@ -131,6 +136,7 @@ class Diagnostics:
             self.context.reset(token)
 
     def emit(self, kind: str, outcome: str, **details: object) -> None:
+        """Record a structured diagnostic event and update bounded summaries."""
         context = self.context.get()
         event = {"time": get_iso_time(), "kind": kind, "outcome": outcome, **details}
         duplicate_failure = False
@@ -205,6 +211,7 @@ class Diagnostics:
                 self.tail.append(event)
 
     def get_snapshot(self) -> dict:
+        """Copy accumulated diagnostic counts and bounded event history for a report."""
 
         with self.lock:
             return {

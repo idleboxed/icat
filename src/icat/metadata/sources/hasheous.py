@@ -25,6 +25,7 @@ class HasheousSource(MetadataSource):
 
     @staticmethod
     def extract_mapping_ids(values: object, source: str, kind: str) -> set[str]:
+        """Collect mapping identifiers for the requested source and identity kind."""
 
         if not isinstance(values, list):
             return set()
@@ -40,6 +41,7 @@ class HasheousSource(MetadataSource):
         }
 
     def fetch(self, context: LookupContext) -> Metadata:
+        """Fetch hash-verified Hasheous mappings and metadata, reporting rejected mappings safely."""
         rejected: list[dict[str, tuple[object, object]]] = []
 
         try:

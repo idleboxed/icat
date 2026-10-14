@@ -13,8 +13,10 @@ ma tests
 
 The local matrix comes from `.github/workflows/python-package.yml`; GitHub Actions
 runs pytest directly through uv. Tests use synthetic data without real hardware
-or external network access. Native CHD checks are skipped without a compatible
-`libchdr`; `chdman` is not needed to run them.
+or external network access. The full suite requires a compatible `libchdr`;
+missing it is a test setup error, not a reason to skip CHD checks. On Ubuntu 24.04,
+install the `libchdr0` system package before running `ma tests`. GitHub Actions
+uses Ubuntu 24.04 and installs the same package. `chdman` is not needed.
 
 ## Source layout
 

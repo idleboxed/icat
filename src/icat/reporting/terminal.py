@@ -34,6 +34,7 @@ class MessageFormatter(logging.Formatter):
         self.destination = destination.absolute() if destination is not None else None
 
     def format_filename(self, path: Path) -> str:
+        """Display a sanitized filename, relative to the destination when possible."""
 
         if path.is_absolute():
 
@@ -46,6 +47,7 @@ class MessageFormatter(logging.Formatter):
         return quote_path(path)
 
     def format_error(self, exc: Exception, *, status: str = "", known: tuple[Path, ...] = ()) -> str:
+        """Render an expected failure with safe filename and status presentation."""
         path = None
 
         if isinstance(exc, CatalogueError):
@@ -77,6 +79,7 @@ class MessageFormatter(logging.Formatter):
         return message
 
     def format(self, record: logging.LogRecord) -> str:
+        """Format a copied log record without changing the original record's arguments."""
         rendered = copy(record)
 
         if isinstance(record.args, tuple):
@@ -93,6 +96,7 @@ class MessageFormatter(logging.Formatter):
 
 
 def should_use_rich(mode: str, stream: TextIO, environ: Mapping[str, str]) -> bool:
+    """Choose rich progress only when the requested mode and output environment permit it."""
 
     if mode not in {"auto", "plain", "rich"}:
         raise ValueError("Unknown progress display mode")
@@ -109,6 +113,7 @@ def sanitize_text(value: str) -> str:
 
 
 def format_step_label(step: StepProgress) -> str:
+    """Describe a step's known or unknown amount of completed work."""
 
     if step.status == "not_needed" or step.total == 0:
         return "not needed"
@@ -121,10 +126,12 @@ def format_step_label(step: StepProgress) -> str:
 
 
 def format_progress_label(snapshot: ProgressSnapshot) -> str:
+    """Describe the current step's position and title."""
     return f"[{snapshot.index + 1}/{len(snapshot.steps)}] {snapshot.current.step.title}"
 
 
 def format_inventory_label(inventory: RunInventory) -> str:
+    """Describe known source and catalogue counts without inventing unknown values."""
     files, candidates, records = (
         "?" if value is None else f"{value}"
         for value in (inventory.source_files, inventory.candidate_sources, inventory.catalogue_entries)
@@ -133,6 +140,7 @@ def format_inventory_label(inventory: RunInventory) -> str:
 
 
 def format_provider_label(provider: ProviderProgress) -> str:
+    """Describe a metadata provider's progress and current status."""
     percent = f" ({provider.percent}%)" if provider.percent is not None else ""
     return (
         f"Provider {provider.index}/{provider.sources}: {provider.source} · "
@@ -147,6 +155,7 @@ class WarningGroups:
         self.repeated: dict[str, tuple[str, int]] = {}
 
     def accept(self, message: str, level: int, *, identity: str) -> bool:
+        """Report whether to show a message now, grouping repeated warnings by identity."""
 
         if level != logging.WARNING:
             return True
@@ -162,6 +171,7 @@ class WarningGroups:
         return True
 
     def drain(self) -> Iterator[str]:
+        """Yield repeat summaries and clear accumulated warning groups."""
 
         for message, count in self.repeated.values():
 
@@ -184,15 +194,18 @@ class PlainProgressHandler(logging.StreamHandler):
         self.setFormatter(MessageFormatter(destination))
 
     def write_line(self, message: str) -> None:
+        """Write one sanitized diagnostic line and flush the output stream."""
         self.stream.write(f"{sanitize_text(message)}{self.terminator}")
         self.flush()
 
     def flush_repeats(self) -> None:
+        """Write summaries for warnings grouped since the last flush."""
 
         for message in self.groups.drain():
             self.write_line(message)
 
     def emit(self, record: logging.LogRecord) -> None:
+        """Present a log event and route output failures through logging's error handler."""
         try:
             self.emit_message(record)
 
@@ -200,6 +213,7 @@ class PlainProgressHandler(logging.StreamHandler):
             self.handleError(record)
 
     def emit_message(self, record: logging.LogRecord) -> None:
+        """Update plain progress or display an ordinary diagnostic event."""
         provider = getattr(record, "icat_provider_progress", None)
 
         if isinstance(provider, ProviderProgress):
@@ -284,11 +298,13 @@ class RichProgressHandler(logging.Handler):
         self.setFormatter(MessageFormatter(destination))
 
     def flush_repeats(self) -> None:
+        """Display summaries for grouped warnings in the rich console."""
 
         for message in self.groups.drain():
             self.console.print(Text(sanitize_text(message), style="yellow"))
 
     def emit(self, record: logging.LogRecord) -> None:
+        """Update structured rich progress or display an ordinary diagnostic event."""
         snapshot = getattr(record, "icat_progress", None)
 
         if isinstance(snapshot, ProgressSnapshot):
@@ -335,6 +351,7 @@ class RichProgressHandler(logging.Handler):
             self.handleError(record)
 
     def render(self) -> Group:
+        """Build the current rich progress panel from the latest snapshot and network activity."""
         snapshot = self.snapshot
 
         if snapshot is None or snapshot.status in {"complete", "complete_with_rejections"}:

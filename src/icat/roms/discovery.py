@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 def discover_sources(
     root: Path, *, platforms: Collection[str] | None = None, diagnostics: Diagnostics | None = None,
 ) -> SourceInventory:
+    """Inventory supported source files without following symbolic links."""
     diagnostics = diagnostics or Diagnostics()
     extensions = get_selected_extensions(platforms)
     found = []

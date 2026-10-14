@@ -42,6 +42,7 @@ class _Writer(Py7zIO):
         self.count = 0
 
     def write(self, data: bytes | bytearray) -> int:
+        """Write a selected member while enforcing its declared uncompressed size."""
         end = self.count + len(data)
 
         if end > self.expected:
@@ -53,15 +54,19 @@ class _Writer(Py7zIO):
         return len(data)
 
     def read(self, size: int | None = None) -> bytes:
+        """Read from the staged member stream for the archive writer interface."""
         return self.output.read(size)
 
     def seek(self, offset: int, whence: int = 0) -> int:
+        """Move within the staged member stream for the archive writer interface."""
         return self.output.seek(offset, whence)
 
     def flush(self) -> None:
+        """Flush the staged member stream."""
         self.output.flush()
 
     def size(self) -> int:
+        """Return the number of member bytes written so far."""
         return self.count
 
 
@@ -71,6 +76,7 @@ class _Factory(WriterFactory):
         self.created: set[str] = set()
 
     def create(self, filename: str) -> Py7zIO:
+        """Provide a writer only for an approved member and only once."""
 
         if filename not in self.writers or filename in self.created:
             raise SourceError("Unexpected or duplicate 7z output", path=filename)
@@ -79,6 +85,7 @@ class _Factory(WriterFactory):
         return self.writers[filename]
 
     def extract(self, archive: SevenZipFile) -> None:
+        """Extract approved members and verify that every declared output was fully written."""
         archive.extract(targets=list(self.writers), factory=self)
 
         if self.created != self.writers.keys() or any(

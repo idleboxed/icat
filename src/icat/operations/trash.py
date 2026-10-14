@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def apply_trash(session: Session) -> None:
+    """Apply the selected trash-removal or preference-reset plan within the session."""
     options, progress, operation = session.options, session.progress, session.operation
     dst, catalogue_path = session.dst, session.catalogue_path
     entries, original, preferences = session.entries, session.original, session.preferences

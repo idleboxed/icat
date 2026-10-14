@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 @contextmanager
 def open_zip(path: Path) -> Iterator[zipfile.ZipFile]:
+    """Open a checked regular ZIP file until context exit, translating archive failures."""
     try:
 
         with open_regular_file(path) as stream, zipfile.ZipFile(stream) as archive:

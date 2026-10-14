@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def update_metadata(session: Session) -> None:
+    """Apply validated provider metadata to the session's games and record provenance."""
     options, progress, operation = session.options, session.progress, session.operation
     entries, unique, by_hash = session.entries, session.unique, session.by_hash
     provider, diagnostics = session.provider, session.diagnostics

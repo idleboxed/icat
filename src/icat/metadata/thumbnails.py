@@ -8,6 +8,7 @@ from ..errors import CatalogueError
 
 
 def convert(data: bytes) -> bytes:
+    """Validate an input image and encode the catalogue's bounded PNG thumbnail."""
     try:
 
         with Image.open(BytesIO(data)) as source:

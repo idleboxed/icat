@@ -35,6 +35,7 @@ def run(
     options: Options, provider: Provider, *, header_fixer: NesHeaderFixer | None = None,
     md_identifier: MegaDriveIdentifier | None = None,
 ) -> Result:
+    """Execute the planned catalogue phases with owned resources and recorded failure state."""
     steps = [Step("prepare", "Prepare & list files")]
 
     if options.trash or options.trash_reset:

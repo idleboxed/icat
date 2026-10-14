@@ -137,9 +137,11 @@ class HttpClient:
         self.diagnostics = Diagnostics()
 
     def cancel(self) -> None:
+        """Request cancellation of pending HTTP work and bounded waits."""
         self.cancelled.set()
 
     def get_settings(self) -> dict:
+        """Return non-secret HTTP settings for operation reports."""
         return {
             "offline": self.offline, "refresh": self.refresh, "timeout_seconds": self.timeout,
             "request_intervals_seconds": dict(sorted(self.request_intervals.items())),
@@ -149,6 +151,7 @@ class HttpClient:
 
     @contextmanager
     def acquire_request_slot(self, host: str, scope: str, deadline: float) -> Iterator[None]:
+        """Hold a rate-limited request slot within the caller's wait deadline."""
         announced = set()
 
         while True:
@@ -232,6 +235,7 @@ class HttpClient:
         cache: bool = True,
         response_filter: Callable[[bytes], bytes] | None = None,
     ) -> bytes | None:
+        """Read a bounded response from an allowed HTTPS host, respecting cache and retry limits."""
         host = self.check_url(url, hosts)
         identity = url + (json.dumps(headers, sort_keys=True) if headers else "")
         key = hashlib.sha256(identity.encode()).hexdigest()
@@ -433,6 +437,7 @@ class HttpClient:
 
     @staticmethod
     def check_url(url: str, hosts: frozenset[str]) -> str:
+        """Validate an allowed HTTPS URL without credentials or a custom port; return its host."""
         try:
             parsed = urlsplit(url)
             valid = parsed.scheme == "https" and parsed.hostname in hosts and not parsed.username and not parsed.port
@@ -450,6 +455,7 @@ class HttpClient:
         limit: int = 4 * 1024 * 1024,
         redact: Sequence[str] = (),
     ) -> dict | None:
+        """Read a JSON object, optionally redacting secret values before caching it."""
         def filter_response(data: bytes) -> bytes:
             return redact_json(data, redact)
 

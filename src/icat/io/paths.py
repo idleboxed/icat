@@ -47,4 +47,5 @@ def get_default_cache_dir() -> Path:
 
 
 def get_thumbnail_name(digest: str) -> str:
+    """Return the hash-based relative PNG path used by catalogue thumbnails."""
     return f"{digest[:2]}/{digest}.png"

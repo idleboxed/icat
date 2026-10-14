@@ -25,6 +25,7 @@ from ..io import paths as layout
 
 @contextmanager
 def lock_destination(dst: Path) -> Iterator[None]:
+    """Hold a destination lock until context exit; reject another active operation."""
     path = dst / layout.LOCK_FILE
 
     try:
@@ -46,6 +47,7 @@ def lock_destination(dst: Path) -> Iterator[None]:
         sync_directory(dst)
 
 def check_catalogue(path: Path, original: bytes | None) -> None:
+    """Reject a catalogue whose presence or bytes changed since the operation began."""
     path = resolve_relative_file(path.parent, path.name)
     current = read_bytes(path, LIMIT) if path.exists() else None
 
@@ -53,6 +55,7 @@ def check_catalogue(path: Path, original: bytes | None) -> None:
         raise CatalogueError("Catalogue was modified during sync; refusing further changes", path=path)
 
 def publish_catalogue(path: Path, encoded: bytes, *, original: bytes | None) -> None:
+    """Publish changed catalogue bytes only after rechecking the original file."""
     check_catalogue(path, original)
 
     if encoded != original:
@@ -62,6 +65,7 @@ def publish_catalogue(path: Path, encoded: bytes, *, original: bytes | None) -> 
         raise CatalogueError("Catalogue readback failed", path=path)
 
 def publish_image(rom: Rom, dst: Path, directories: DirectorySync, *, indexed: bool) -> None:
+    """Place a checked ROM at its catalogue path and schedule required directory synchronization."""
     target = check_existing(dst / layout.IMAGES_DIR, rom.entry["image"], rom.entry["hash"])
 
     if target.exists():
@@ -84,6 +88,7 @@ def publish_image(rom: Rom, dst: Path, directories: DirectorySync, *, indexed: b
 
 
 def publish_games(session: Session) -> None:
+    """Synchronize prepared ROMs and thumbnails before publishing their catalogue entries."""
     progress, operation, dst = session.progress, session.operation, session.dst
     by_hash, unique, metadata = session.by_hash, session.unique, session.metadata
     existing_hashes = session.existing_hashes

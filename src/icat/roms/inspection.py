@@ -22,6 +22,7 @@ def inspect_rom(
     path: Path, name: str, *, diagnostics: Diagnostics | None = None, diagnostic_path: Path | None = None,
     md_identifier: MegaDriveIdentifier | None = None,
 ) -> Rom:
+    """Validate and identify a self-contained ROM, returning hashes and initial catalogue fields."""
     diagnostics = diagnostics or Diagnostics()
     diagnostic_path = diagnostic_path if diagnostic_path is not None else Path(name)
 

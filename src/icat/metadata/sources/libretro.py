@@ -26,6 +26,7 @@ class LibretroSource(LibretroDatSource):
         self.snapshots: dict[str, set[str] | None] = {}
 
     def fetch_image_names(self, repository: str) -> set[str] | None:
+        """Read a bounded thumbnail-name index once per repository, or return None on failure."""
         # Two bounded Git tree requests per platform, cached by the shared HTTP client.
         # Failure of this optional index must not disable direct image downloads.
 
@@ -94,6 +95,7 @@ class LibretroSource(LibretroDatSource):
                 return None
 
     def fetch(self, context: LookupContext) -> Metadata:
+        """Fetch a Libretro thumbnail using verified canonical metadata rather than guessing ROM identity."""
         platform = context.rom.entry["platform"]
 
         if platform not in LIBRETRO:

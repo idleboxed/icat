@@ -18,6 +18,7 @@ CHUNK = 1024 * 1024
 
 @contextmanager
 def open_regular_file(path: Path) -> Iterator[BinaryIO]:
+    """Hold a read-only regular-file stream without following the final symbolic link."""
     fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
 
     try:
@@ -33,6 +34,7 @@ def open_regular_file(path: Path) -> Iterator[BinaryIO]:
 
 
 def get_file_stamp(path: Path) -> tuple[int, ...]:
+    """Return the regular file's identity and change-detection metadata."""
     info = path.lstat()
 
     if not stat.S_ISREG(info.st_mode):
@@ -42,18 +44,21 @@ def get_file_stamp(path: Path) -> tuple[int, ...]:
 
 
 def compute_sha256(path: Path) -> str:
+    """Hash a checked regular file without loading it entirely into memory."""
 
     with open_regular_file(path) as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
 def verify_sha256(path: Path, digest: str, *, error: str) -> None:
+    """Raise a catalogue error if the file's digest differs from the expected digest."""
 
     if compute_sha256(path) != digest:
         raise CatalogueError(f"{error}", path=path)
 
 
 def read_bytes(path: Path, limit: int) -> bytes:
+    """Read a regular file only if its contents fit within the supplied limit."""
 
     with open_regular_file(path) as stream:
         data = stream.read(limit + 1)
@@ -65,6 +70,7 @@ def read_bytes(path: Path, limit: int) -> bytes:
 
 
 def sync_directory(path: Path) -> None:
+    """Synchronize directory entries, propagating filesystem errors."""
     # Windows has no portable directory-fsync; fail before moving any inputs there.
     fd = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
 
@@ -82,6 +88,7 @@ class DirectorySync:
         self.pending: set[Path] = set()
 
     def add(self, path: Path, *, through: Path) -> None:
+        """Schedule a directory and its ancestors up to the specified sync boundary."""
 
         if path != through and through not in path.parents:
             raise ValueError("Directory sync boundary is not an ancestor")
@@ -93,6 +100,7 @@ class DirectorySync:
                 break
 
     def flush(self) -> None:
+        """Synchronize scheduled directories from deepest to shallowest, then clear the set."""
         def get_directory_sort_key(path: Path) -> tuple[int, str]:
             return -len(path.parts), f"{path}"
 
@@ -102,6 +110,7 @@ class DirectorySync:
 
 
 def write_atomic(path: Path, data: bytes) -> None:
+    """Synchronize new file contents before replacing the destination and syncing its directory."""
     fd, name = tempfile.mkstemp(prefix=paths.ATOMIC_WRITE_PREFIX, dir=path.parent)
     tmp = Path(name)
 
@@ -145,6 +154,7 @@ def copy_rom(source: BinaryIO, target: Path, *, expected_size: int) -> None:
 
 
 def ensure_directory(path: Path) -> None:
+    """Create missing directories while rejecting symbolic links and non-directory ancestors."""
     # Reject symlinked ancestors rather than writing through them to another volume.
 
     for part in [*reversed(path.parents), path]:
@@ -159,6 +169,7 @@ def ensure_directory(path: Path) -> None:
 
 
 def resolve_relative_file(root: Path, name: str) -> Path:
+    """Resolve a file under the selected root while rejecting symbolic-link paths."""
     path = root / name
 
     for parent in [path, *path.parents]:
@@ -186,6 +197,7 @@ def resolve_relative_file(root: Path, name: str) -> Path:
 
 
 def check_existing(root: Path, name: str, digest: str) -> Path:
+    """Return a checked destination path, rejecting an existing file with different contents."""
     path = resolve_relative_file(root, name)
 
     if path.exists():

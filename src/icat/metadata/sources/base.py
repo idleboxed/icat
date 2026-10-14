@@ -31,6 +31,7 @@ class _PlainText(HTMLParser):
         self.hidden = 0
 
     def handle_starttag(self, tag: str, attrs: list) -> None:
+        """Suppress script/style contents and preserve block breaks while reading HTML."""
 
         if tag in ("script", "style"):
             self.hidden += 1
@@ -39,6 +40,7 @@ class _PlainText(HTMLParser):
             self.parts.append("\n")
 
     def handle_endtag(self, tag: str) -> None:
+        """End hidden HTML sections and preserve block breaks."""
 
         if tag in ("script", "style"):
             self.hidden = max(0, self.hidden - 1)
@@ -47,6 +49,7 @@ class _PlainText(HTMLParser):
             self.parts.append("\n")
 
     def handle_data(self, data: str) -> None:
+        """Collect text outside suppressed HTML sections."""
 
         if not self.hidden:
             self.parts.append(data)
@@ -70,6 +73,7 @@ class MetadataSource(ABC):
         self.datasets.diagnostics = http.diagnostics
 
     def lookup(self, context: LookupContext) -> Metadata:
+        """Look up and validate metadata for one ROM context."""
         return self.lookup_many([context])[0]
 
     def lookup_many(self, contexts: Sequence[LookupContext]) -> list[Metadata]:
@@ -82,6 +86,7 @@ class MetadataSource(ABC):
         return results
 
     def get_skip_reason(self, context: LookupContext) -> str | None:
+        """Explain why this source cannot help the context, or return None."""
 
         if not self.identifies and not (context.missing & self.provides):
             return "already_filled"
@@ -276,6 +281,7 @@ class MetadataSource(ABC):
         return accepted
 
     def report_error(self, exc: Exception) -> None:
+        """Record a source failure without logging arbitrary messages that may contain secrets."""
         # Reasons/statuses are local structured values; arbitrary exception messages may contain keys.
         reason = exc.reason if isinstance(exc, NetworkError) else type(exc).__name__
         status = exc.status if isinstance(exc, NetworkError) else None
@@ -291,6 +297,7 @@ class MetadataSource(ABC):
         return [self.fetch(context) for context in contexts]
 
     def get(self, url: str, *, image: bool = False) -> bytes | None:
+        """Read a bounded source response, optionally converting an image to the thumbnail format."""
         try:
             data = self.http.get(url, hosts=self.hosts, limit=8 * 1024 * 1024 if image else 4 * 1024 * 1024)
             return convert(data) if data is not None and image else data
@@ -304,6 +311,7 @@ class MetadataSource(ABC):
             return None
 
     def get_json(self, url: str, *, headers: dict[str, str] | None = None, optional: bool = False) -> dict | None:
+        """Read source JSON while restricting credential headers to the source's trusted hosts."""
 
         if headers and urlsplit(url).hostname not in self.credential_hosts:
             raise NetworkError("Credentials are restricted to their source")
@@ -321,6 +329,7 @@ class MetadataSource(ABC):
 
     @staticmethod
     def require_mapping(value: object) -> dict:
+        """Require a provider value to be a metadata object."""
 
         if not isinstance(value, dict):
             raise ValueError("Expected a metadata object")
@@ -329,6 +338,7 @@ class MetadataSource(ABC):
 
     @staticmethod
     def normalize_text(value: object, *, html: bool = False, multiline: bool = False) -> str | None:
+        """Clean provider text, optionally stripping HTML and preserving line breaks."""
 
         if not isinstance(value, str):
             return None
@@ -347,11 +357,13 @@ class MetadataSource(ABC):
 
     @staticmethod
     def parse_year(value: object) -> int | None:
+        """Return a single unambiguous four-digit year, or None."""
         matches = re.findall(r"\b([12][0-9]{3})\b", f"{value}")
         return int(matches[0]) if len(set(matches)) == 1 else None
 
     @staticmethod
     def select_consensus_value(values: list) -> object:
+        """Return the shared nonempty value, or None if candidates conflict."""
         # Missing rows do not vote; conflicting nonempty values must not be guessed.
         known = [value for value in values if value is not None and value != ""]
         return known[0] if known and all(value == known[0] for value in known) else None
@@ -371,6 +383,7 @@ class FileMetadataSource(MetadataSource):
         limit: int,
         validate: Callable[[Path], None] | None = None,
     ) -> Path | None:
+        """Obtain and validate a bounded dataset through the shared persistent cache."""
         def download() -> bytes | None:
             return self.http.get(url, hosts=self.hosts, limit=download_limit, redirects=True, cache=False)
 
@@ -384,6 +397,7 @@ class FileMetadataSource(MetadataSource):
         )
 
     def unpack(self, data: bytes) -> bytes:
+        """Return raw dataset bytes; compressed sources override this step."""
         return data
 
     @abstractmethod

@@ -28,6 +28,7 @@ def stage_source(
     header_fixer: NesHeaderFixer | None = None, platforms: Collection[str] | None = None,
     md_identifier: MegaDriveIdentifier | None = None,
 ) -> Source | None:
+    """Stage supported source games for inspection, preserving originals and returning None for unsupported files."""
     diagnostics = diagnostics or Diagnostics()
     extensions = get_selected_extensions(platforms)
 

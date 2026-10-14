@@ -20,6 +20,7 @@ BASE = "https://api.thegamesdb.net/v1"
 
 
 def parse_identifier(value: object) -> str | None:
+    """Normalize a bounded positive numeric provider identifier, or return None."""
 
     if type(value) not in (str, int):
         return None
@@ -42,6 +43,7 @@ class TheGamesDbSource(MetadataSource):
         self.genres: dict[str, str | None] | None = None
 
     def get_skip_reason(self, context: LookupContext) -> str | None:
+        """Require usable source settings plus verified game and platform identifiers."""
         reason = super().get_skip_reason(context)
 
         if reason:
@@ -57,6 +59,7 @@ class TheGamesDbSource(MetadataSource):
     def iter_batch_indexes(
         self, contexts: Sequence[LookupContext], pending: Sequence[int],
     ) -> Iterator[tuple[int, ...]]:
+        """Group ROM variants into bounded batches sharing distinct verified game IDs."""
         by_id: dict[str, list[int]] = {}
 
         for index in pending:
@@ -70,6 +73,7 @@ class TheGamesDbSource(MetadataSource):
             yield tuple(index for game_id in identities for index in by_id[game_id])
 
     def fetch_genre_names(self) -> dict[str, str | None] | None:
+        """Read and validate one shared genre dictionary per source run."""
         # All workers share one bounded dictionary request, including a failed attempt.
 
         with self.genres_lock:
@@ -116,9 +120,11 @@ class TheGamesDbSource(MetadataSource):
             return self.genres
 
     def fetch(self, context: LookupContext) -> Metadata:
+        """Fetch one ROM's metadata by its verified TheGamesDB identifiers."""
         return self.fetch_many([context])[0]
 
     def fetch_many(self, contexts: Sequence[LookupContext]) -> list[Metadata]:
+        """Fetch bounded metadata batches and return platform-checked results in input order."""
         identities = [
             (parse_identifier(context.identifiers.get("TheGamesDb:game")),
              parse_identifier(context.identifiers.get("TheGamesDb:platform")))

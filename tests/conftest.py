@@ -18,7 +18,6 @@ import pytest
 from PIL import Image
 
 from icat.roms.formats.chd_reader import FRAME_BYTES, load_library
-from icat.errors import CatalogueError
 from icat.metadata.types import Metadata
 from icat.metadata.sources.openvgdb import OpenVgdbSource
 from icat.roms.types import Rom
@@ -199,11 +198,7 @@ def thumbnail_index_rules() -> Callable[..., list[str]]:
 
 @pytest.fixture
 def native_chd() -> CDLL:
-    try:
-        return load_library()
-
-    except CatalogueError as exc:
-        pytest.skip(f"{exc}")
+    return load_library()
 
 @pytest.fixture
 def chd_image() -> Callable[..., bytes]:

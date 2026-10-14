@@ -33,6 +33,7 @@ class DatIndex:
 
 
 def read_checksum(node: DatNode, name: str, length: int) -> str | None:
+    """Read a checksum of the required hexadecimal length, or return None."""
     value = node.get_scalar(name)
     return value.lower() if value and re.fullmatch(rf"[0-9A-Fa-f]{{{length}}}", value) else None
 
@@ -56,6 +57,7 @@ class LibretroDatDatabase:
         self.lock, self.tables = shared.lock, shared.tables
 
     def validate_dataset(self, path: Path, *, system: str | None = None, kind: str | None = None) -> None:
+        """Parse and validate a DAT snapshot for the expected system and dataset kind."""
         identity = (path, system, kind)
 
         if identity in self.tables:
@@ -138,6 +140,7 @@ class LibretroDatDatabase:
         self.tables[identity] = index
 
     def get_table(self, platform: str, kind: str, *, system: str) -> tuple[DatIndex | None, str]:
+        """Obtain the platform's shared DAT index and its source URL."""
         url = f"{BASE}/{kind}/{quote(system)}.dat"
         validate = partial(self.validate_dataset, system=system, kind=kind)
 

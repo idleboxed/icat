@@ -48,6 +48,7 @@ class OpenVgdbSource(FileMetadataSource):
     hosts = frozenset({"github.com", "release-assets.githubusercontent.com"})
 
     def unpack(self, data: bytes) -> bytes:
+        """Read only the bounded SQLite member from an OpenVGDB ZIP, without extracting archive paths."""
         try:
 
             with zipfile.ZipFile(BytesIO(data)) as archive:
@@ -69,6 +70,7 @@ class OpenVgdbSource(FileMetadataSource):
             raise ValueError("Invalid OpenVGDB archive") from exc
 
     def validate_dataset(self, path: Path) -> None:
+        """Check the required SQLite schema and database integrity in read-only mode."""
 
         with read_database(path) as db:
             tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -82,6 +84,7 @@ class OpenVgdbSource(FileMetadataSource):
                 raise ValueError("Corrupt OpenVGDB database")
 
     def fetch(self, context: LookupContext) -> Metadata:
+        """Match ROM hashes, size and platform, returning only coherent release metadata."""
         platform = SYSTEMS.get(context.rom.entry["platform"])
 
         if platform is None:
@@ -134,6 +137,7 @@ class OpenVgdbSource(FileMetadataSource):
 
     @staticmethod
     def parse_genre(value: object) -> str | None:
+        """Normalize OpenVGDB genre candidates using the shared catalogue vocabulary."""
 
         if not isinstance(value, str):
             return None

@@ -13,6 +13,7 @@ FIELDS = {"hash", "platform", "region", "image", "title", "year", "players", "ge
 
 
 def is_clean_text(value: object, *, multiline: bool = False) -> bool:
+    """Report whether text contains no forbidden control characters."""
     return isinstance(value, str) and not any(
         (ord(character) < 32 or 127 <= ord(character) <= 159)
         and not (multiline and character in "\r\n\t") for character in value
@@ -20,6 +21,7 @@ def is_clean_text(value: object, *, multiline: bool = False) -> bool:
 
 
 def is_valid_filename(name: object) -> bool:
+    """Report whether a filename is safe and portable for the catalogue."""
 
     if not isinstance(name, str) or not is_clean_text(name):
         return False
@@ -38,6 +40,7 @@ def is_valid_filename(name: object) -> bool:
 
 
 def is_valid_image_path(name: object) -> bool:
+    """Report whether every component of a bounded relative ROM path is valid."""
     return (
         isinstance(name, str)
         and len(name.encode("utf-8")) <= 512
@@ -46,6 +49,7 @@ def is_valid_image_path(name: object) -> bool:
 
 
 def validate(games: list[dict]) -> None:
+    """Check catalogue entries and reject invalid fields, duplicate hashes or duplicate paths."""
     hashes, names = set(), set()
 
     for entry in games:
@@ -107,6 +111,7 @@ def validate(games: list[dict]) -> None:
 
 
 def filter_known_fields(games: list[dict]) -> list[dict]:
+    """Copy catalogue entries with only the fields supported by this format."""
     return [
         {key: value for key, value in entry.items() if key in FIELDS} if isinstance(entry, dict) else entry
         for entry in games
@@ -114,6 +119,7 @@ def filter_known_fields(games: list[dict]) -> list[dict]:
 
 
 def encode(games: list[dict]) -> bytes:
+    """Validate entries and encode a bounded UTF-8 JSON catalogue."""
     games = filter_known_fields(games)
     validate(games)
     data = (json.dumps({"games": games}, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
@@ -125,6 +131,7 @@ def encode(games: list[dict]) -> bytes:
 
 
 def decode(data: bytes) -> list[dict]:
+    """Decode and validate a bounded JSON catalogue, discarding unsupported fields."""
     try:
         doc = json.loads(data)
 
@@ -140,6 +147,7 @@ def decode(data: bytes) -> list[dict]:
 
 
 def create_empty_entry(name: str, digest: str, platform: str) -> dict:
+    """Create the initial catalogue fields for an inspected ROM."""
     return dict(
         hash=digest,
         platform=platform,

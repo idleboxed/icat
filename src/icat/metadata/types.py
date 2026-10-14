@@ -30,6 +30,7 @@ class LookupContext:
 
     @property
     def missing(self) -> frozenset[str]:
+        """Return the metadata fields this ROM still needs from providers."""
         missing = {key for key in FIELDS - {"thumbnail"} if self.values.get(key) is None}
 
         if normalize_genre(self.values.get("genre")) == "Other":

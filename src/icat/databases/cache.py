@@ -42,6 +42,7 @@ class DatasetCache:
         validate: Callable[[Path], None],
         limit: int,
     ) -> Path | None:
+        """Reuse a checked dataset or prepare a replacement; keep the old dataset if refresh fails."""
 
         if not re.fullmatch(r"[a-z0-9][a-z0-9_.-]*", name):
             raise ValueError("Invalid dataset name")
@@ -133,6 +134,7 @@ class DatasetCache:
 # SQLite connections are acquired per lookup/thread, never shared or opened by constructors.
 @contextmanager
 def read_database(path: Path) -> Iterator[sqlite3.Connection]:
+    """Hold a read-only immutable SQLite connection until context exit."""
     try:
         connection = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro&immutable=1", uri=True)
 

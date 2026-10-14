@@ -25,6 +25,7 @@ class Preferences:
 
     @classmethod
     def load(cls, root: Path) -> "Preferences":
+        """Read checked preferences, retaining the original contents for later change detection."""
         path = resolve_relative_file(root, paths.PREFERENCES_FILE)
         original = read_bytes(path, LIMIT) if path.exists() else None
 
@@ -47,6 +48,7 @@ class Preferences:
         return cls(root, original, document, frozenset(trash))
 
     def check_unchanged(self) -> None:
+        """Reject pending writes or preferences changed since they were loaded."""
         pending = self.root / paths.PREFERENCES_TEMP_FILE
 
         if pending.exists() or pending.is_symlink():
@@ -61,6 +63,7 @@ class Preferences:
             )
 
     def reset_trash(self) -> None:
+        """Clear trash preferences only after checking that the original file is unchanged."""
         self.check_unchanged()
 
         if not self.trash:

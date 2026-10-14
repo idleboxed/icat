@@ -34,6 +34,7 @@ class Board:
 
 
 def parse_rom_size(value: str | None) -> int:
+    """Parse a bounded database ROM size in KiB and return its byte count."""
 
     if not isinstance(value, str) or not re.fullmatch(r"[0-9]{1,5}k", value):
         raise ValueError("Invalid NES database ROM size")
@@ -47,6 +48,7 @@ class NesHeaderFixer:
         self.tables: dict[Path, dict[str, Board | None]] = {}
 
     def validate_dataset(self, path: Path) -> None:
+        """Validate a bounded NES header database and cache its parsed board entries."""
 
         if path in self.tables:
             return
@@ -115,6 +117,7 @@ class NesHeaderFixer:
         self.tables[path] = table
 
     def get_database(self) -> tuple[Path | None, dict[str, Board | None]]:
+        """Obtain the shared header database and its validated board table."""
         def download() -> bytes | None:
             return self.http.get(URL, hosts=frozenset({"raw.githubusercontent.com"}), limit=LIMIT, cache=False)
 

@@ -16,6 +16,7 @@ class DatNode:
     fields: dict[str, list[str | DatNode]] = field(default_factory=dict)
 
     def get_scalar(self, name: str) -> str | None:
+        """Return one scalar field, or None if absent; reject repeated or block values."""
         values = self.fields.get(name, [])
 
         if not values:
@@ -27,6 +28,7 @@ class DatNode:
         return values[0]
 
     def get_children(self, name: str) -> list[DatNode]:
+        """Return all blocks with the given name, rejecting scalar values."""
         values = self.fields.get(name, [])
 
         if any(not isinstance(value, DatNode) for value in values):

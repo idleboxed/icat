@@ -32,6 +32,7 @@ class StepProgress:
 
     @property
     def fraction(self) -> float | None:
+        """Return the completed fraction, or None when the total is unknown."""
 
         if self.status in {"done", "not_needed"}:
             return 1.0
@@ -40,6 +41,7 @@ class StepProgress:
 
     @property
     def percent(self) -> int | None:
+        """Return the integer completion percentage, or None when it is unknown."""
         fraction = self.fraction
         return int(fraction * 100) if fraction is not None else None
 
@@ -66,9 +68,11 @@ class ProviderProgress:
 
     @property
     def percent(self) -> int | None:
+        """Return this provider's integer completion percentage, or None without a total."""
         return int(100 * self.completed / self.total) if self.total else None
 
     def emit(self) -> None:
+        """Publish this provider's progress as a structured logging event."""
         logger.info(
             "Metadata source %s (%d/%d): %d/%d games checked; %s",
             self.source, self.index, self.sources, self.completed, self.total, self.status,
@@ -87,14 +91,17 @@ class ProgressSnapshot:
 
     @property
     def current(self) -> StepProgress:
+        """Return the currently selected step's progress."""
         return self.steps[self.index]
 
     @property
     def resolved(self) -> int:
+        """Count steps already completed or declared unnecessary."""
         return sum(step.status in {"done", "not_needed"} for step in self.steps)
 
     @property
     def percent(self) -> int:
+        """Return overall progress, reserving completion until the run has finished."""
 
         if self.status in {"complete", "complete_with_rejections"}:
             return 100
@@ -124,6 +131,7 @@ class RunProgress:
         return self
 
     def start(self, key: str, *, total: int | None = None) -> None:
+        """Start the next planned step, rejecting out-of-order transitions."""
         next_index = self.index + 1
 
         if next_index >= len(self.steps) or self.steps[next_index].step.key != key:
@@ -139,6 +147,7 @@ class RunProgress:
         self._update(status="running", total=total)
 
     def set_total(self, total: int) -> None:
+        """Set a nonnegative step total before counted work begins."""
         current = self.steps[self.index]
 
         if current.total is not None or current.completed or total < 0:
@@ -147,6 +156,7 @@ class RunProgress:
         self._update(total=total)
 
     def set_item(self, value: str) -> None:
+        """Set the current item label and publish updated progress."""
         self._update(item=value)
 
     def set_counts(
@@ -155,6 +165,7 @@ class RunProgress:
         duplicate_sources: int | None = None, rejected_sources: int | None = None,
         skipped_sources: int | None = None,
     ) -> None:
+        """Update known inventory counts without clearing values omitted by the caller."""
         changes = {
             key: value for key, value in (
                 ("source_files", source_files), ("candidate_sources", candidate_sources),
@@ -171,6 +182,7 @@ class RunProgress:
         self._update()
 
     def advance(self) -> None:
+        """Complete one counted item, rejecting advances beyond the known total."""
         current = self.steps[self.index]
 
         if current.total is None or current.completed >= current.total:

@@ -33,12 +33,15 @@ class LibretroDatSource(FileMetadataSource):
         self.lock, self.tables = self.database.lock, self.database.tables
 
     def validate_dataset(self, path: Path, *, system: str | None = None, kind: str | None = None) -> None:
+        """Validate a DAT snapshot through the shared Libretro database."""
         self.database.validate_dataset(path, system=system, kind=kind)
 
     def get_table(self, platform: str, kind: str) -> tuple[DatIndex | None, str]:
+        """Obtain the platform's DAT index and provenance URL."""
         return self.database.get_table(platform, kind, system=SYSTEMS[platform])
 
     def find_matching_identities(self, context: LookupContext, index: DatIndex) -> list[tuple[str, int]] | None:
+        """Return exact ROM identities, rejecting ambiguous checksum ownership."""
         matched = []
 
         for rom_id in context.rom.lookups:
@@ -62,6 +65,7 @@ class LibretroDatSource(FileMetadataSource):
         return matched
 
     def find_canonical_name(self, context: LookupContext) -> tuple[str | None, str | None]:
+        """Return one verified canonical title and its source URL, or no match."""
         platform = context.rom.entry["platform"]
 
         if platform not in SYSTEMS:

@@ -50,6 +50,7 @@ GENRES = frozenset(GENRE_ALIASES)
 
 
 def normalize_genre_key(value: str) -> str:
+    """Normalize genre spelling for comparison without choosing a catalogue genre."""
     value = re.sub(r"[-_\u2010-\u2015]", " ", value).casefold()
     value = re.sub(r"\s*/\s*", "/", value)
     return " ".join(value.split())

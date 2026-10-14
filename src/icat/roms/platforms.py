@@ -37,6 +37,7 @@ UNSUPPORTED = {".rar", ".gz", ".xz", ".sbi", ".cue", ".m3u", ".iso", ".ccd", ".i
 
 
 def get_selected_extensions(platforms: Collection[str] | None = None) -> dict[str, str | None]:
+    """Return supported extensions for the selected platforms, rejecting unknown platform names."""
 
     if platforms is None:
         return EXTENSIONS

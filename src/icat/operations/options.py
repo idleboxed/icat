@@ -26,6 +26,7 @@ class Options:
 
     @property
     def mode(self) -> str:
+        """Return the user-facing operation mode for progress reporting."""
 
         if self.trash_only:
             return "TRASH RESET" if self.trash_reset else "TRASH CLEAN"
@@ -37,6 +38,7 @@ class Options:
 
     @property
     def log_command(self) -> str:
+        """Return the operation name used in its journal."""
 
         if self.trash_only:
             return "trash-reset" if self.trash_reset else "trash-clean"

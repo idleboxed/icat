@@ -99,6 +99,7 @@ class RunJournal:
         os.fsync(self._progress.fileno())
 
     def record(self, state: str, *, force: bool = False) -> None:
+        """Persist a forced state snapshot or a rate-limited progress checkpoint."""
         now = monotonic()
         previous = self.data["state"]
         updated_at = get_iso_time()
@@ -181,6 +182,7 @@ class RunJournal:
         self._removal_failed = False
 
     def register_source_refs(self, urls: Sequence[str]) -> list[str]:
+        """Assign compact provenance references after removing URL query strings and credentials."""
         result = []
 
         for url in urls:

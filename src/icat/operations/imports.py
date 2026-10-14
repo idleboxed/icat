@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def import_sources(session: Session) -> None:
+    """Inspect and stage selected sources while recording prepared, duplicate and rejected games."""
     options, progress, operation = session.options, session.progress, session.operation
     src, dst, temp = session.src, session.dst, session.staging
     entries, diagnostics = session.entries, session.diagnostics
@@ -124,6 +125,7 @@ def import_sources(session: Session) -> None:
 
 
 def remove_sources(session: Session) -> None:
+    """Remove approved source files only after publication and unchanged-source verification."""
     progress, operation = session.progress, session.operation
     sources, unique, dst = session.sources, session.unique, session.dst
 

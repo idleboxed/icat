@@ -39,6 +39,7 @@ class Result:
     duration_seconds: float = 0
 
 def log_result(result: Result) -> None:
+    """Present a concise run summary, including rejections and exit status."""
     status = "COMPLETED WITH REJECTIONS" if result.rejected else "COMPLETED"
     elapsed = int(result.duration_seconds)
     logger.info(
@@ -95,6 +96,7 @@ def log_result(result: Result) -> None:
 
 
 def finish(session: Session) -> Result:
+    """Finalize the import or metadata journal and return the operation result."""
     options, progress, operation = session.options, session.progress, session.operation
     dst, unique, by_hash = session.dst, session.unique, session.by_hash
     ordered, encoded, original = session.ordered, session.encoded, session.original
@@ -171,6 +173,7 @@ def finish(session: Session) -> Result:
 
 
 def finish_trash(session: Session) -> Result:
+    """Finalize a trash operation's progress and journal, then return its result."""
     options, progress, operation = session.options, session.progress, session.operation
     entries, trash_entries, journal = session.entries, session.trash_entries, operation.data
 

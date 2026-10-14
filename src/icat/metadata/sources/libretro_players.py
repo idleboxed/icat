@@ -9,6 +9,7 @@ class LibretroPlayersSource(LibretroDatSource):
     provides = frozenset({"players"})
 
     def fetch(self, context: LookupContext) -> Metadata:
+        """Join exact ROM identities to one unambiguous player count from Libretro DATs."""
         platform = context.rom.entry["platform"]
 
         if platform not in SYSTEMS:

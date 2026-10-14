@@ -40,6 +40,7 @@ class Provider:
             source.datasets.diagnostics = self.diagnostics
 
     def cancel(self) -> None:
+        """Request cancellation from every configured metadata HTTP client."""
 
         if self.md_identifier is not None:
             self.md_identifier.database.http.cancel()
@@ -48,6 +49,7 @@ class Provider:
             source.http.cancel()
 
     def get_settings(self) -> dict:
+        """Return provider configuration without exposing credentials."""
         return {
             "sources": [
                 {"name": source.name, "key_available": bool(source.key),
@@ -59,6 +61,7 @@ class Provider:
         }
 
     def lookup(self, rom: Rom) -> Metadata:
+        """Look up one ROM using the configured provider sequence."""
         return self.lookup_many([rom])[0]
 
     @property
@@ -72,6 +75,7 @@ class Provider:
         return max(sizes, default=1)
 
     def lookup_many(self, roms: Sequence[Rom]) -> list[Metadata]:
+        """Look up ROMs and return results in their original order."""
         results = [Metadata() for _rom in roms]
 
         for index, result in self.iter_lookup(roms):
@@ -158,6 +162,7 @@ def build_provider(
     refresh_databases: bool = False,
     source_names: Sequence[str] | None = None,
 ) -> Provider:
+    """Construct selected metadata sources with shared caches and environment-provided credentials."""
     cache = DatasetCache(
         http.cache / paths.DATASETS_DIR, offline=http.offline, refresh=refresh_databases, diagnostics=http.diagnostics
     )

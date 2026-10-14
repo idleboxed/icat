@@ -21,15 +21,18 @@ class TrashFile:
 
     @property
     def path(self) -> Path:
+        """Return the checked path of the file selected for removal."""
         return resolve_relative_file(self.root, self.name)
 
     def verify(self) -> None:
+        """Reject a removal candidate whose identity or digest changed."""
         path = self.path
 
         if get_file_stamp(path) != self.fingerprint or compute_sha256(path) != self.digest:
             raise CatalogueError(f"{self.label} file changed; refusing removal", path=path)
 
     def remove(self) -> None:
+        """Verify and unlink the selected file, then synchronize its parent directory."""
         self.verify()
         path = self.path
         path.unlink()
@@ -39,6 +42,7 @@ class TrashFile:
 def prepare_trash(
     dst: Path, entries: list[dict], hashes: frozenset[str], *, label: str = "Trash"
 ) -> list[TrashFile]:
+    """Validate files belonging to trashed entries and return their removal plan."""
     files = []
 
     for entry in entries:

@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 def parse_concurrency(value: str) -> int:
+    """Parse the bounded worker count used by argparse."""
     # Argparse would otherwise expose the renamed callback in CLI diagnostics.
     try:
         parsed = int(value)
@@ -41,6 +42,7 @@ def parse_concurrency(value: str) -> int:
 
 
 def parse_retry_count(value: str) -> int:
+    """Parse the allowed number of HTTP retries."""
     try:
         parsed = int(value)
 
@@ -54,6 +56,7 @@ def parse_retry_count(value: str) -> int:
 
 
 def create_seconds_parser(minimum: float, maximum: float, *, positive: bool = False) -> Callable[[str], float]:
+    """Create an argparse converter for a bounded, finite duration."""
     def parse(value: str) -> float:
         parsed = float(value)
 
@@ -67,6 +70,7 @@ def create_seconds_parser(minimum: float, maximum: float, *, positive: bool = Fa
 
 
 def parse_platform_list(value: str) -> tuple[str, ...]:
+    """Parse the selected platform names and reject unsupported values."""
     platforms = tuple(value.split(","))
     unknown = [platform for platform in platforms if platform not in PLATFORMS]
 
@@ -82,6 +86,7 @@ def parse_platform_list(value: str) -> tuple[str, ...]:
 def configure_cli_logging(
     mode: str = "auto", *, diagnostics: Diagnostics | None = None, destination: Path | None = None,
 ) -> Iterator[None]:
+    """Temporarily attach CLI diagnostics and progress output without replacing caller handlers."""
     package = logging.getLogger("icat")
     handler = None
     old_level = package.level
@@ -115,6 +120,7 @@ def configure_cli_logging(
 
 
 def add_common_options(parser: argparse.ArgumentParser) -> None:
+    """Add the shared import and destination options to a command parser."""
     parser.set_defaults(
         src=None, move_roms=False, trash=False, trash_reset=False, trash_only=False,
         fix_nes_headers=True, platforms=None, concurrency=5,
@@ -139,6 +145,7 @@ def add_common_options(parser: argparse.ArgumentParser) -> None:
 
 
 def add_metadata_options(parser: argparse.ArgumentParser) -> None:
+    """Add the agreed metadata-provider and HTTP options to a command parser."""
     metadata = parser.add_argument_group("Metadata")
     metadata.add_argument(
         "--refresh-db", action="store_true", help="Update persistent file databases; keep old on failure",
@@ -174,6 +181,7 @@ def add_metadata_options(parser: argparse.ArgumentParser) -> None:
 
 
 def create_argument_parser() -> argparse.ArgumentParser:
+    """Build the parser for the supported icat commands."""
     parser = argparse.ArgumentParser(
         prog="icat", description="Prepare IGUI catalogues on the PC. No device probing.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -244,6 +252,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the selected catalogue operation and return its exit code."""
     parser = create_argument_parser()
     args = parser.parse_args(argv)
 
