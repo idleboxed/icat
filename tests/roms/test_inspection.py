@@ -1,5 +1,6 @@
 import hashlib
 import zlib
+from collections.abc import Callable
 from pathlib import Path
 import pytest
 from icat.errors import CatalogueError, SourceError
@@ -88,9 +89,12 @@ def test_extended_nes_with_extra_data_uses_only_the_full_lookup(
     assert path.read_bytes() == data
 
 
-def test_ambiguous_bin_is_not_silently_assigned_a_platform(tmp_path: Path) -> None:
+@pytest.mark.parametrize("source_kind", ["unknown", "smd"])
+def test_ambiguous_bin_is_not_silently_assigned_a_platform(
+    tmp_path: Path, lookup_image: Callable[[str], tuple[str, str, bytes, bytes]], source_kind: str,
+) -> None:
     path = tmp_path / "something.bin"
-    path.write_bytes(bytes(512))
+    path.write_bytes(lookup_image("smd")[3] if source_kind == "smd" else bytes(512))
 
     with pytest.raises(CatalogueError, match="Ambiguous"):
         inspect_rom(path, path.name)
@@ -119,6 +123,64 @@ def test_reported_trailing_nes_shapes_are_preserved_without_repair(tmp_path: Pat
     assert path.read_bytes() == data
     assert rom.lookups[0] == (hashlib.sha1(data).hexdigest(), len(data))
     assert rom.entry["hash"] == hashlib.sha256(data).hexdigest()
+
+
+@pytest.mark.parametrize("kind, suffix, transformation", [
+    ("snes", ".smc", "snes-copier-header"),
+    ("smd", ".smd", "smd-interleaved"),
+    ("v64", ".z64", "n64-byteswap16"),
+    ("n64", ".v64", "n64-byteswap32"),
+])
+def test_normalized_lookup_preserves_full_file_identity(
+    tmp_path: Path, lookup_image: Callable[[str], tuple[str, str, bytes, bytes]],
+    monkeypatch: pytest.MonkeyPatch, kind: str, suffix: str, transformation: str,
+) -> None:
+    platform, _suffix, canonical, encoded = lookup_image(kind)
+    path = tmp_path / f"Game (U) [!]{suffix}"
+    path.write_bytes(encoded)
+    monkeypatch.setattr("icat.roms.inspection.CHUNK", 7)
+    diagnostics = Diagnostics()
+    full_lookup = hashlib.sha1(encoded).hexdigest(), len(encoded)
+    normalized_lookup = hashlib.sha1(canonical).hexdigest(), len(canonical)
+    full_digest = hashlib.sha256(encoded).hexdigest()
+    normalized_crc = f"{zlib.crc32(canonical):08x}"
+
+    rom = inspect_rom(path, path.name, diagnostics=diagnostics)
+
+    assert path.read_bytes() == encoded
+    assert rom.entry["image"] == path.name
+    assert rom.entry["platform"] == platform
+    assert rom.entry["hash"] == full_digest
+    assert rom.full_lookup == full_lookup
+    assert rom.lookups == [full_lookup, normalized_lookup]
+    assert rom.crc32s == {full_lookup: f"{zlib.crc32(encoded):08x}", normalized_lookup: normalized_crc}
+    events = diagnostics.get_snapshot()["events"]
+    assert len(events) == 1
+    event = events[0]
+    expected = {
+        "kind": "identity", "outcome": "normalized_lookup", "name": path.name,
+        "sha256": full_digest, "transformation": transformation,
+        "sha1": normalized_lookup[0], "size": normalized_lookup[1], "crc32": normalized_crc,
+    }
+    assert {key: event[key] for key in expected} == expected
+
+
+@pytest.mark.parametrize("suffix", [".z64", ".v64", ".n64"])
+def test_canonical_n64_magic_does_not_duplicate_lookup(
+    tmp_path: Path, lookup_image: Callable[[str], tuple[str, str, bytes, bytes]], suffix: str,
+) -> None:
+    _platform, _suffix, canonical, _encoded = lookup_image("n64")
+    path = tmp_path / f"Game{suffix}"
+    path.write_bytes(canonical)
+    diagnostics = Diagnostics()
+
+    rom = inspect_rom(path, path.name, diagnostics=diagnostics)
+
+    assert rom.entry["platform"] == "N64"
+    assert rom.lookups == [rom.full_lookup]
+    assert rom.full_lookup == (hashlib.sha1(canonical).hexdigest(), len(canonical))
+    assert diagnostics.get_snapshot()["events"] == []
+    assert path.read_bytes() == canonical
 
 
 @pytest.mark.parametrize("data", [b"", bytes(16384), b"NES\x1a" + bytes(12)])

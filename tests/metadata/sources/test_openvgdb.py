@@ -2,13 +2,38 @@
 
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from icat.metadata.provider import Provider
 from icat.roms.types import Rom
+from icat.roms.inspection import inspect_rom
 from icat.metadata.sources.openvgdb import URL, OpenVgdbSource
+
+
+@pytest.mark.parametrize("match", ["full", "normalized", "wrong-size", "wrong-platform"])
+def test_transformed_rom_requires_matching_identity_and_platform(
+    tmp_path: Path, source: OpenVgdbSource, lookup_image: Callable[[str], tuple[str, str, bytes, bytes]],
+    openvgdb_archive: Callable[..., bytes], response_mock: Callable[..., Any], match: str,
+) -> None:
+    _platform, suffix, _canonical, encoded = lookup_image("snes")
+    path = tmp_path / f"GoodTools (U) [!]{suffix}"
+    path.write_bytes(encoded)
+    rom = inspect_rom(path, path.name)
+    sha1, size = rom.lookups[0 if match == "full" else -1]
+    data = openvgdb_archive(
+        digest=sha1, size=size + int(match == "wrong-size"), platform=25 if match == "wrong-platform" else 26,
+    )
+
+    with response_mock(f"GET {URL} -> 200 :".encode() + data):
+        result = Provider([source]).lookup(rom)
+
+    assert (result.fields.get("title") == "Synthetic Game") == (match in {"full", "normalized"})
+
+    if match in {"wrong-size", "wrong-platform"}:
+        assert result.fields == {}
 
 
 def test_openvgdb_identity_html_normalization_and_source_tracking(

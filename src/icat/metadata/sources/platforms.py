@@ -46,3 +46,9 @@ LIBRETRO = {
     "A5200": "Atari - 5200",
     "A7800": "Atari - 7800",
 }
+
+# Dataset availability is independent of the platform's thumbnail namespace.
+LIBRETRO_DATASETS: dict[str, dict[str, str]] = {
+    "no-intro": {platform: system for platform, system in LIBRETRO.items() if platform not in {"PSX", "SCD"}},
+    "maxusers": {platform: system for platform, system in LIBRETRO.items() if platform not in {"NDS", "PSX", "SCD"}},
+}

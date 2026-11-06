@@ -1,7 +1,7 @@
 """Players from a coherent Libretro DAT snapshot, joined through verified ROM identities."""
 
 from ..types import LookupContext, Metadata
-from .libretro_dat import SYSTEMS, LibretroDatSource
+from .libretro_dat import LibretroDatSource
 
 
 class LibretroPlayersSource(LibretroDatSource):
@@ -12,7 +12,7 @@ class LibretroPlayersSource(LibretroDatSource):
         """Join exact ROM identities to one unambiguous player count from Libretro DATs."""
         platform = context.rom.entry["platform"]
 
-        if platform not in SYSTEMS:
+        if not all(self.can_use_dataset(platform, kind) for kind in ("no-intro", "maxusers")):
             return Metadata(outcome="unsupported_platform")
 
         # One parse per table/run; immutable indexes are shared by all ROM workers.

@@ -12,7 +12,7 @@ from icat.io.http import HttpClient
 from icat.roms.types import Rom
 from icat.metadata.types import Metadata
 from icat.databases.libretro import BASE
-from icat.metadata.sources.libretro_dat import SYSTEMS
+from icat.metadata.sources.platforms import LIBRETRO_DATASETS
 from icat.operations.options import Options
 from icat.operations.session import run
 
@@ -22,7 +22,7 @@ def dats(rom: Rom) -> dict[str, str]:
     """Minimal synthetic tables; names deliberately do not match the ROM filename."""
     sha1, size = rom.lookups[0]
     crc = rom.crc32s[rom.lookups[0]]
-    header = f"clrmamepro ( name \"{SYSTEMS["NES"]}\" )\n"
+    header = f"clrmamepro ( name \"{LIBRETRO_DATASETS["no-intro"]["NES"]}\" )\n"
     return {
         "no-intro": (
             f"{header}game ( name \"Different name\" rom ( sha1 {sha1.upper()} "
@@ -33,7 +33,10 @@ def dats(rom: Rom) -> dict[str, str]:
 
 
 def build_response_rules(dats: dict[str, str]) -> list[str]:
-    return [f"GET {BASE}/{kind}/{quote(SYSTEMS["NES"])}.dat -> 200 :{body}" for kind, body in dats.items()]
+    return [
+        f"GET {BASE}/{kind}/{quote(LIBRETRO_DATASETS[kind]["NES"])}.dat -> 200 :{body}"
+        for kind, body in dats.items()
+    ]
 
 
 def create_provider(path: Path, *, offline: bool = False, refresh: bool = False) -> Provider:
@@ -52,7 +55,7 @@ def test_exact_identity_fills_only_players_and_keeps_both_sources(
 
     assert result.fields == {"players": 2}
     assert result.field_sources == {"players": "libretro-players"}
-    assert result.sources == [f"{BASE}/{kind}/{quote(SYSTEMS["NES"])}.dat" for kind in dats]
+    assert result.sources == [f"{BASE}/{kind}/{quote(LIBRETRO_DATASETS[kind]["NES"])}.dat" for kind in dats]
 
 
 @pytest.mark.parametrize("mismatch", ["sha1", "size", "crc", "platform", "crc-only"])
@@ -65,7 +68,7 @@ def test_name_or_crc_alone_cannot_identify_a_rom(
         "sha1": (sha1.upper(), "0" * 40),
         "size": (f"size {size}", "size 1"),
         "crc": (crc.upper(), "12345678"),
-        "platform": (SYSTEMS["NES"], SYSTEMS["MD"]),
+        "platform": (LIBRETRO_DATASETS["no-intro"]["NES"], LIBRETRO_DATASETS["no-intro"]["MD"]),
         "crc-only": (f"sha1 {sha1.upper()} size {size}", ""),
     }[mismatch]
     dats["no-intro"] = dats["no-intro"].replace(old, new)
@@ -179,7 +182,9 @@ def test_failed_refresh_preserves_validated_dat_pair(
     manifests = {path: path.read_bytes() for path in cache.glob("datasets/*/current.json")}
     updated = dict(dats)
     updated["maxusers"] = {
-        "wrong-platform": dats["maxusers"].replace(SYSTEMS["NES"], SYSTEMS["MD"]),
+        "wrong-platform": dats["maxusers"].replace(
+            LIBRETRO_DATASETS["maxusers"]["NES"], LIBRETRO_DATASETS["maxusers"]["MD"],
+        ),
         "truncated": dats["maxusers"][:-3],
         "wrong-kind": dats["no-intro"],
         "empty": dats["maxusers"].split("\n")[0],

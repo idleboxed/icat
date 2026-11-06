@@ -12,13 +12,11 @@ from ...databases.libretro import DatCache, DatIndex, LibretroDatDatabase
 from ...io.http import HttpClient
 from .base import FileMetadataSource
 from ..types import LookupContext
-from .platforms import LIBRETRO
+from .platforms import LIBRETRO_DATASETS
 from ...io import paths
 
 
 logger = logging.getLogger(__name__)
-# NDS has no maxusers DAT; CD containers are not No-Intro cartridge identities.
-SYSTEMS = {key: value for key, value in LIBRETRO.items() if key not in {"NDS", "PSX", "SCD"}}
 
 
 class LibretroDatSource(FileMetadataSource):
@@ -36,9 +34,13 @@ class LibretroDatSource(FileMetadataSource):
         """Validate a DAT snapshot through the shared Libretro database."""
         self.database.validate_dataset(path, system=system, kind=kind)
 
+    def can_use_dataset(self, platform: str, kind: str) -> bool:
+        """Report availability of this dataset without inferring other metadata capabilities."""
+        return platform in LIBRETRO_DATASETS.get(kind, {})
+
     def get_table(self, platform: str, kind: str) -> tuple[DatIndex | None, str]:
         """Obtain the platform's DAT index and provenance URL."""
-        return self.database.get_table(platform, kind, system=SYSTEMS[platform])
+        return self.database.get_table(platform, kind, system=LIBRETRO_DATASETS[kind][platform])
 
     def find_matching_identities(self, context: LookupContext, index: DatIndex) -> list[tuple[str, int]] | None:
         """Return exact ROM identities, rejecting ambiguous checksum ownership."""
@@ -68,7 +70,7 @@ class LibretroDatSource(FileMetadataSource):
         """Return one verified canonical title and its source URL, or no match."""
         platform = context.rom.entry["platform"]
 
-        if platform not in SYSTEMS:
+        if not self.can_use_dataset(platform, "no-intro"):
             return None, None
 
         with self.lock:

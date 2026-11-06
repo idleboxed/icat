@@ -61,6 +61,44 @@ def test_full_file_identity_is_explicit_and_does_not_change_lookup_order(
     assert path.read_bytes() == data
 
 
+@pytest.mark.parametrize("match", ["full", "normalized", "wrong-size", "wrong-platform"])
+def test_transformed_rom_uses_verified_fallback_after_full_file(
+    tmp_path: Path, lookup_image: Callable[[str], tuple[str, str, bytes, bytes]],
+    variant_response: Callable[..., dict], variant_provider: Provider, response_mock: Callable[..., Any], match: str,
+) -> None:
+    _platform, suffix, _canonical, encoded = lookup_image("snes")
+    path = tmp_path / f"GoodTools (U) [!]{suffix}"
+    path.write_bytes(encoded)
+    rom = inspect_rom(path, path.name)
+    identity = rom.lookups[0 if match == "full" else -1]
+    response = variant_response(identity, platform="19", variant="")
+    response["name"] = "Verified transformed ROM"
+
+    if match == "wrong-size":
+        response["signature"]["rom"]["size"] += 1
+
+    elif match == "wrong-platform":
+        response["platform"]["metadata"][0]["id"] = "18"
+
+    rules = [build_response_rule(identity, response)]
+    expected = [f"{LOOKUP}{identity[0]}"]
+
+    if match != "full":
+        full_url = f"{LOOKUP}{rom.full_lookup[0]}"
+        rules.insert(0, f"GET {full_url} -> 404 :")
+        expected.insert(0, full_url)
+
+    with response_mock(rules) as mock:
+        result = variant_provider.lookup(rom)
+        calls = list(mock.calls)
+
+    assert [call.request.url for call in calls] == expected
+    assert (result.fields.get("title") == "Verified transformed ROM") == (match in {"full", "normalized"})
+
+    if match in {"wrong-size", "wrong-platform"}:
+        assert result.fields == {}
+
+
 @pytest.mark.parametrize("variant", ["VS UniSystem", "PlayChoice-10"])
 @pytest.mark.parametrize("platform", ["18", "52"])
 @pytest.mark.parametrize("extra", [b"", b"B" * 8192], ids=["no_tail", "with_tail"])

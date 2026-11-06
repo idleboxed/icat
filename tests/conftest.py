@@ -25,8 +25,7 @@ from icat.roms.inspection import inspect_rom
 from icat.databases.libretro import BASE
 from icat.databases.cache import DatasetCache
 from icat.io.http import HttpClient
-from icat.metadata.sources.libretro_dat import SYSTEMS
-from icat.metadata.sources.platforms import LIBRETRO
+from icat.metadata.sources.platforms import LIBRETRO, LIBRETRO_DATASETS
 from icat.operations.options import Options
 
 
@@ -174,14 +173,50 @@ def openvgdb_archive(nes: bytes) -> Callable[..., bytes]:
 
 
 @pytest.fixture
-def canonical_dat_rule(rom: Rom) -> str:
-    sha1, size = rom.lookups[0]
-    crc = rom.crc32s[rom.lookups[0]]
-    content = (
-        f"clrmamepro ( name \"{SYSTEMS["NES"]}\" )\n"
-        f"game ( name \"Game (Japan)\" rom ( sha1 {sha1} size {size} crc {crc} ) )\n"
-    )
-    return f"GET {BASE}/no-intro/{quote(SYSTEMS["NES"])}.dat -> 200 :{content}"
+def libretro_dat_rule() -> Callable[..., str]:
+    def build(rom: Rom, *, title: str = "Canonical (USA)", lookup_index: int = -1) -> str:
+        sha1, size = rom.lookups[lookup_index]
+        crc = rom.crc32s[rom.lookups[lookup_index]]
+        system = LIBRETRO_DATASETS["no-intro"][rom.entry["platform"]]
+        content = (
+            f"clrmamepro ( name \"{system}\" )\n"
+            f"game ( name \"{title}\" rom ( sha1 {sha1} size {size} crc {crc} ) )\n"
+        )
+        return f"GET {BASE}/no-intro/{quote(system)}.dat -> 200 :{content}"
+
+    return build
+
+
+@pytest.fixture
+def canonical_dat_rule(rom: Rom, libretro_dat_rule: Callable[..., str]) -> str:
+    return libretro_dat_rule(rom, title="Game (Japan)", lookup_index=0)
+
+
+@pytest.fixture
+def lookup_image() -> Callable[[str], tuple[str, str, bytes, bytes]]:
+    """Synthetic original/encoded pairs; no commercial ROM data or production conversion helpers."""
+    def create(kind: str) -> tuple[str, str, bytes, bytes]:
+
+        if kind == "snes":
+            canonical = bytes(range(256)) * 32
+            return "SNES", ".smc", canonical, b"H" * 512 + canonical
+
+        if kind == "smd":
+            cartridge = bytearray(bytes(range(256)) * 64 + bytes(reversed(range(256))) * 64)
+            cartridge[0x100:0x104] = b"SEGA"
+            canonical = bytes(cartridge)
+            blocks = [canonical[offset:offset + 16384] for offset in range(0, len(canonical), 16384)]
+            return "MD", ".smd", canonical, b"H" * 512 + b"".join(block[1::2] + block[::2] for block in blocks)
+
+        if kind in {"v64", "n64"}:
+            canonical = b"\x80\x37\x12\x40" + bytes(range(256)) * 128
+            group = 2 if kind == "v64" else 4
+            encoded = b"".join(canonical[offset:offset + group][::-1] for offset in range(0, len(canonical), group))
+            return "N64", f".{kind}", canonical, encoded
+
+        raise ValueError("Unknown synthetic lookup image")
+
+    return create
 
 
 @pytest.fixture

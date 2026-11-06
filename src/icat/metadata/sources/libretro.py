@@ -105,6 +105,10 @@ class LibretroSource(LibretroDatSource):
         title = canonical or Path(context.rom.entry["image"]).stem
         repository = LIBRETRO[platform].replace(" ", "_")
         title = re.sub(r"[&*/:`<>?\\|\"]", "_", title)
+
+        if canonical is None:
+            self.http.diagnostics.emit("thumbnail", "filename_fallback", name=f"{title}.png")
+
         names = self.fetch_image_names(repository)
 
         if names is not None and f"{title}.png" not in names:

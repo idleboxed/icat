@@ -43,6 +43,12 @@ where a source can identify the game; otherwise the filename supplies the title
 and optional fields remain `null`. Genre names are normalized; unknown genres
 become `null` with a warning.
 
+Run the same command with the updated icat to fill missing thumbnails. Existing
+ROMs are inspected again, including the additional identities described in
+[Metadata lookup](30_formats.md#metadata-lookup). No reimport or cache deletion is
+needed to compute them; stored ROMs and their catalogue IDs remain unchanged.
+Even an identified game may have no snapshot in the source.
+
 Metadata titled `ZZZ` is ignored, and an existing `ZZZ` title is treated as missing.
 ROMs are not removed based on external classifications such as demo or non-game.
 
@@ -55,7 +61,9 @@ icat sync --src /path/to/roms --dst /path/to/games --http-offline
 icat metadata --dst /path/to/games --http-offline
 ```
 
-- `--http-refresh` refreshes online metadata without clearing filled catalogue fields.
+- `--http-refresh` refreshes online metadata, including cached HTTP misses, without
+  clearing filled catalogue fields. It is optional for stale responses, not required
+  to compute additional lookup identities.
 - `--refresh-db` refreshes persistent databases, keeping the old copy if the update fails.
 - `--cache PATH` selects a PC-only cache. The default is `$XDG_CACHE_HOME/icat`,
   or `~/.cache/icat` when that variable is unset.
@@ -127,6 +135,10 @@ redirected output uses it automatically. Missing metadata does not mean a reject
 Each run writes `<logs_dir>/<command>/<UTC-run>/journal.json`; command directories
 are `sync`, `metadata`, `trash-clean` and `trash-reset`. Inspect this journal after
 an error; early input-validation failures may occur before it is created.
+
+The `thumbnail.filename_fallback` counter under `diagnostics.counts.libretro`
+counts exact filename-based thumbnail lookups without a verified canonical title.
+It does not mean that the whole platform lacks snapshots.
 
 Bad ROMs are rejected individually. I/O errors, destination conflicts and a corrupt
 existing catalogue stop the operation. Completed writes and removals are not rolled back.

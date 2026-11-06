@@ -38,6 +38,27 @@ of the game image and are not installed by icat. Extensions are case-insensitive
   copy. Use `--no-fix-nes-headers` to disable repair; strict validation remains.
   Repairs change imported bytes and therefore the catalogue hash.
 
+## Metadata lookup
+
+Metadata sources share additional lookup identities for these cartridge representations:
+
+- **SNES:** omit a 512-byte copier header when the remaining image is a positive
+  multiple of 8192 bytes. No SNES deinterleaving or padding removal is performed.
+- **Mega Drive SMD:** omit the 512-byte header and decode complete 16 KiB interleaved
+  blocks. The decoded first block must contain `SEGA` at offset `0x100`.
+- **N64:** recognize byte order from the first four bytes, regardless of extension.
+  `37 80 40 12` swaps each byte pair; `40 12 37 80` reverses each four-byte word.
+  The length must be divisible by the group size. `80 37 12 40` is already canonical.
+
+These transformations only compute extra SHA-1, size and CRC lookup values; they
+do not convert the imported ROM. Full-file identity remains available, and stored
+bytes, filenames and catalogue SHA-256 are unchanged. Extra lookup values are
+matched exactly within the detected platform; no fuzzy title search is added.
+Recognition does not verify ROM integrity or emulator compatibility.
+
+Libretro canonical titles and player counts use independent datasets. A missing
+player-count dataset does not prevent canonical thumbnail lookup, including for NDS.
+
 ## ZIP and 7z
 
 One ROM is selected per archive, after the platform filter. Files are extracted

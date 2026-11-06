@@ -8,6 +8,7 @@ from pathlib import Path
 from ..errors import SourceError
 from ..catalogue.codec import create_empty_entry, is_valid_filename
 from .formats.chd import detect_platform
+from .formats.lookup import LookupNormalizer
 from ..reporting.diagnostics import Diagnostics
 from ..io.files import CHUNK, open_regular_file, compute_sha256
 from .formats.mega_drive import MegaDriveIdentifier
@@ -102,12 +103,14 @@ def inspect_rom(
     raw_crc = payload_crc = 0
     position = 0
     nonzero_tail = False
+    normalizer = LookupNormalizer(platform=platform, header=header, size=size)
 
     with open_regular_file(path) as stream:
 
         while chunk := stream.read(CHUNK):
             full.update(chunk)
             raw.update(chunk)
+            normalizer.update(chunk)
             payload_chunk = chunk[max(0, offset - position) : max(0, payload_end - position)]
             tail = chunk[max(0, payload_end - position) :]
             nonzero_tail = nonzero_tail or tail.count(0) != len(tail)
@@ -116,22 +119,26 @@ def inspect_rom(
             payload_crc = zlib.crc32(payload_chunk, payload_crc)
             position += len(chunk)
 
+    full_digest = full.hexdigest()
+    full_lookup = (raw.hexdigest(), size)
+    full_crc = f"{raw_crc:08x}"
+
     if needs_md_identity:
 
-        if not md_identifier.is_known_rom(sha1=raw.hexdigest(), size=size, crc32=f"{raw_crc:08x}"):
+        if not md_identifier.is_known_rom(sha1=full_lookup[0], size=size, crc32=full_crc):
             raise SourceError(
                 "Ambiguous .bin (no Mega Drive signature or verified DAT identity)", path=diagnostic_path,
             )
 
         diagnostics.emit(
-            "identity", "verified_mega_drive", name=name, sha256=full.hexdigest(), sha1=raw.hexdigest(),
-            size=size, crc32=f"{raw_crc:08x}", database_url=md_identifier.url,
+            "identity", "verified_mega_drive", name=name, sha256=full_digest, sha1=full_lookup[0],
+            size=size, crc32=full_crc, database_url=md_identifier.url,
             basis="full_file_sha1_size_crc32",
         )
         logger.info("%s — Mega Drive verified by DAT (full SHA-1, size and CRC)", diagnostic_path)
 
-    lookups = [(raw.hexdigest(), size)]
-    crc32s = {lookups[0]: f"{raw_crc:08x}"}
+    lookups = [full_lookup]
+    crc32s = {full_lookup: full_crc}
     trailing = size - payload_end
     # Extra data can identify a distinct dump. Prefer its full hash, and do not
     # strip meaningful extra ROM blocks from extended-console lookup identities.
@@ -140,6 +147,18 @@ def inspect_rom(
         payload_lookup = (payload.hexdigest(), payload_end - offset)
         lookups.insert(len(lookups) if trailing else 0, payload_lookup)
         crc32s[payload_lookup] = f"{payload_crc:08x}"
+
+    if normalized := normalizer.finish():
+        normalized_lookup, normalized_crc = normalized
+
+        if normalized_lookup not in crc32s:
+            lookups.append(normalized_lookup)
+            crc32s[normalized_lookup] = normalized_crc
+            diagnostics.emit(
+                "identity", "normalized_lookup", name=name, sha256=full_digest,
+                transformation=normalizer.kind, sha1=normalized_lookup[0], size=normalized_lookup[1],
+                crc32=normalized_crc,
+            )
 
     if trailing:
         outcome = "nes_trailing_data" if nonzero_tail or header[7] & 15 else "nes_zero_padding"
@@ -150,6 +169,6 @@ def inspect_rom(
         )
 
     return Rom(
-        path, create_empty_entry(name, full.hexdigest(), platform), lookups,
-        crc32s=crc32s, full_lookup=(raw.hexdigest(), size),
+        path, create_empty_entry(name, full_digest, platform), lookups,
+        crc32s=crc32s, full_lookup=full_lookup,
     )
