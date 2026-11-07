@@ -28,7 +28,8 @@ CHECKPOINT_SECONDS = 5 * 60
 
 
 def _format_filename_timestamp(timestamp: int) -> str:
-    return datetime.fromtimestamp(timestamp, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    """Keep UTC run names sortable and valid on FAT/exFAT filesystems."""
+    return datetime.fromtimestamp(timestamp, UTC).strftime("%Y-%m-%dT%H-%M-%SZ")
 
 
 class RunJournal:

@@ -136,6 +136,10 @@ Each run writes `<logs_dir>/<command>/<UTC-run>/journal.json`; command directori
 are `sync`, `metadata`, `trash-clean` and `trash-reset`. Inspect this journal after
 an error; early input-validation failures may occur before it is created.
 
+Run directory names use `YYYY-MM-DDTHH-MM-SSZ`, for example `2026-11-07T08-23-26Z`.
+They contain no colons, so they are valid on FAT/exFAT too. Timestamps inside the
+journal retain ISO 8601 format. Existing run directories are not renamed.
+
 The `thumbnail.filename_fallback` counter under `diagnostics.counts.libretro`
 counts exact filename-based thumbnail lookups without a verified canonical title.
 It does not mean that the whole platform lacks snapshots.

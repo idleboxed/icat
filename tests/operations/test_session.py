@@ -494,7 +494,7 @@ def test_journal_has_sortable_utc_filename_configuration_changes_and_completenes
     paths = sorted(options.logs.rglob("journal.json"))
     doc = json.loads(paths[-1].read_text())
 
-    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z(?:_\d{2})?", paths[-1].parent.name)
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z(?:_\d{2})?", paths[-1].parent.name)
     assert paths[-1].parent.parent.name == "sync"
     assert doc["version"] == 4
     assert doc["finished_at"] >= doc["started_at"]

@@ -27,8 +27,19 @@ def test_identical_start_time_never_overwrites_an_existing_log(
     def get_time() -> int:
         return seconds
 
+    # Reproduce exFAT's colon rejection without requiring a mounted card.
+    create_directory = Path.mkdir
+
+    def create_portable_directory(path: Path, mode: int = 0o777, parents: bool = False, exist_ok: bool = False) -> None:
+
+        if ":" in path.name:
+            raise OSError(errno.EINVAL, "Invalid argument", f"{path}")
+
+        create_directory(path, mode=mode, parents=parents, exist_ok=exist_ok)
+
     monkeypatch.setattr("icat.reporting.journal.get_iso_time", get_iso_time)
     monkeypatch.setattr("icat.reporting.journal.time", get_time)
+    monkeypatch.setattr(Path, "mkdir", create_portable_directory)
 
     with RunJournal(tmp_path, {}, Diagnostics()) as first:
         first.record("complete")
@@ -38,10 +49,11 @@ def test_identical_start_time_never_overwrites_an_existing_log(
     with RunJournal(tmp_path, {}, Diagnostics()) as second:
         second.record("complete")
 
-    assert first.path.parent.name == "2026-09-19T12:34:56Z"
-    assert second.path.parent.name == "2026-09-19T12:34:56Z_01"
+    assert first.path.parent.name == "2026-09-19T12-34-56Z"
+    assert second.path.parent.name == "2026-09-19T12-34-56Z_01"
     assert first.path.name == second.path.name == "journal.json"
     assert first.path.read_bytes() == before
+    assert json.loads(before)["started_at"] == "2026-09-19T12:34:56.123456Z"
 
 
 def test_parallel_routine_diagnostics_keep_counts_without_per_rom_history(tmp_path: Path) -> None:
