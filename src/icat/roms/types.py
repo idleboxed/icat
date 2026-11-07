@@ -12,6 +12,7 @@ class Rom:
     has_thumbnail: bool = False
     crc32s: dict[tuple[str, int], str] = field(default_factory=dict)
     full_lookup: tuple[str, int] | None = None
+    size: int | None = None
 
 
 @dataclass

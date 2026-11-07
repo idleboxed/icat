@@ -6,7 +6,6 @@ from pathlib import Path
 
 from ..errors import CatalogueError, SourceError
 from ..io.files import resolve_relative_file, compute_sha256, get_file_stamp, sync_directory, verify_sha256
-from ..metadata.genres import resolve_genre
 from ..roms.types import Rom, Source
 from ..roms.staging import stage_source
 from .state import Session
@@ -30,18 +29,6 @@ def import_sources(session: Session) -> None:
 
     by_hash = {entry["hash"]: dict(entry) for entry in entries}
 
-    for entry in entries:
-
-        with diagnostics.capture_events("catalogue", entry["hash"]):
-            genre = resolve_genre(entry.get("genre"), entry["image"], diagnostics, existing=True)
-
-        if genre != entry.get("genre"):
-            by_hash[entry["hash"]]["genre"] = genre
-            operation.record_metadata_changes(entry["hash"], {"genre": "icat"})
-            logger.info(
-                "%s — genre %r -> %s", layout.quote_path(Path(entry["image"]).name), entry["genre"], genre,
-            )
-
     existing_hashes = set(by_hash)
     by_name = {entry["image"].casefold(): entry["hash"] for entry in entries}
     sources: list[Source] = []
@@ -62,12 +49,19 @@ def import_sources(session: Session) -> None:
                 platforms=options.platforms, md_identifier=md_identifier,
             )
 
+            if source is not None:
+
+                for rom in source.roms:
+                    digest = rom.entry["hash"]
+
+                    if digest in existing_hashes and rom.entry["platform"] != by_hash[digest]["platform"]:
+                        raise SourceError("Conflicting platforms for identical indexed content", path=path)
+
             if source is None:
                 journal["skipped_sources"].append(f"{path}")
 
         except SourceError as exc:
-            # Only content errors are recoverable here. I/O, source mutation,
-            # publication and existing-catalogue failures still stop the run.
+            # I/O, source mutation and unsafe catalogue operations remain fatal.
             shutil.rmtree(staging)
             journal["rejected_sources"].append({"path": f"{path}", "reason": f"{exc}"})
             record("scanning")
@@ -87,6 +81,7 @@ def import_sources(session: Session) -> None:
             })
 
             for rom in source.roms:
+                session.identity_cache.put(rom)
                 digest = rom.entry["hash"]
 
                 if digest in by_hash:
@@ -121,7 +116,9 @@ def import_sources(session: Session) -> None:
 
     session.by_hash, session.existing_hashes = by_hash, existing_hashes
     session.sources, session.unique = sources, unique
+    session.staged_hashes = set(unique)
     session.duplicate_paths = duplicate_paths
+    session.identity_cache.save()
 
 
 def remove_sources(session: Session) -> None:
@@ -129,7 +126,17 @@ def remove_sources(session: Session) -> None:
     progress, operation = session.progress, session.operation
     sources, unique, dst = session.sources, session.unique, session.dst
 
-    moving_sources = sources
+    moving_sources = []
+
+    for source in sources:
+
+        if any(rom.entry["hash"] in session.skipped_hashes for rom in source.roms):
+            operation.data.setdefault("retained_sources", []).append(f"{source.path}")
+            logger.warning("%s — source retained because an indexed ROM was skipped", source.path)
+
+        else:
+            moving_sources.append(source)
+
     moving_hashes = sorted({rom.entry["hash"] for source in moving_sources for rom in source.roms})
     progress.start("move", total=2 * len(moving_sources) + len(moving_hashes))
     # Batch preflight avoids partial deletions on any already-known inconsistency.

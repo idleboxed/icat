@@ -160,10 +160,9 @@ def test_legacy_placeholder_with_missing_asset_never_resumes_automatic_cleanup(
         assert decode(catalogue.read_bytes())[0]["title"] == "Game"
 
     else:
+        result = run(replace(options, src=None), provider)
 
-        with pytest.raises(CatalogueError, match="Indexed image is missing"):
-            run(replace(options, src=None), provider)
-
+        assert result.skipped_images == 1
         assert catalogue.read_bytes() == original
         assert thumbnail.exists() == (missing == "image")
 
@@ -209,8 +208,8 @@ def test_placeholder_move_keeps_source_when_publication_fails(
     assert source.read_bytes() == nes
 
 
-@pytest.mark.parametrize("broken", ["image", "thumbnail", "parent", "different_bytes"])
-def test_stored_placeholder_does_not_bypass_symlink_or_identity_guards(
+@pytest.mark.parametrize("broken", ["image", "thumbnail", "parent"])
+def test_stored_placeholder_does_not_bypass_symlink_guards(
     options: Options, provider: Any, stored_game: tuple[dict, Path, Path], tmp_path: Path, broken: str,
 ) -> None:
     entry, image, thumbnail = stored_game
@@ -219,16 +218,12 @@ def test_stored_placeholder_does_not_bypass_symlink_or_identity_guards(
     catalogue.write_bytes(original)
     thumb_bytes = thumbnail.read_bytes()
 
-    if broken == "different_bytes":
-        image.write_bytes(b"not the original ROM")
+    target = {"image": image, "thumbnail": thumbnail, "parent": image.parent}[broken]
+    outside = tmp_path / "outside"
+    target.rename(outside)
+    target.symlink_to(outside)
 
-    else:
-        target = {"image": image, "thumbnail": thumbnail, "parent": image.parent}[broken]
-        outside = tmp_path / "outside"
-        target.rename(outside)
-        target.symlink_to(outside)
-
-    with pytest.raises(CatalogueError, match="Symlink|identity/platform mismatch|Invalid iNES"):
+    with pytest.raises(CatalogueError, match="Symlink"):
         run(replace(options, src=None), provider)
 
     assert catalogue.read_bytes() == original

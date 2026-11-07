@@ -13,6 +13,7 @@ from ..io.files import (
     write_atomic,
     check_existing,
     ensure_directory,
+    get_file_stamp,
     read_bytes,
     resolve_relative_file,
     sync_directory,
@@ -109,10 +110,25 @@ def publish_games(session: Session) -> None:
         progress.set_item(
             f"{layout.quote_path(layout.get_image_path(rom.entry["image"]))} — cataloguing and verifying"
         )
-        journal["current_image"] = rom.entry["image"]
-        publish_image(rom, dst, directories, indexed=rom.entry["hash"] in existing_hashes)
-        result = metadata[rom.entry["hash"]]
         digest = rom.entry["hash"]
+        journal["current_image"] = rom.entry["image"]
+
+        if digest in existing_hashes:
+            target = resolve_relative_file(dst / layout.IMAGES_DIR, rom.entry["image"])
+
+            try:
+                stamp = get_file_stamp(target)
+
+            except FileNotFoundError:
+                raise CatalogueError("Indexed image is missing", path=target) from None
+
+            if stamp != session.image_stamps[digest]:
+                raise CatalogueError("Indexed image changed during metadata", path=target)
+
+        if digest in session.staged_hashes:
+            publish_image(rom, dst, directories, indexed=digest in existing_hashes)
+
+        result = metadata[digest]
         thumb = resolve_relative_file(dst / layout.THUMBS_DIR, layout.get_thumbnail_name(digest))
 
         if result.thumbnail and not thumb.exists():

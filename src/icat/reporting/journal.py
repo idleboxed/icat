@@ -48,6 +48,7 @@ class RunJournal:
         self.data = {
             "version": 4, "icat_version": __version__, "config": config, "state": "prepared",
             "sources": [], "rejected_sources": [], "skipped_sources": [], "removed": [],
+            "skipped_images": [],
             "trash": [], "trash_removed": [], "trash_reset": False,
             "excluded_games": [], "excluded_removed": [],  # Retained as empty legacy report fields.
             "nes_header_fixes": [],
@@ -237,7 +238,7 @@ class RunJournal:
             exc = CatalogueError("Unresolved removal; operation cannot be completed")
             exc_type = type(exc)
 
-        compact = exc is None and self.data["state"] in {"complete", "complete_with_rejections"}
+        compact = exc is None and self.data["state"] in {"complete", "complete_with_rejections", "complete_with_skips"}
 
         try:
             self.data["finished_at"] = get_iso_time()

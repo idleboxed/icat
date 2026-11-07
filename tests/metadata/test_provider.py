@@ -23,6 +23,51 @@ SNAPSHOT = (
 )
 
 
+@pytest.mark.parametrize("changes, has_thumbnail, expected", [
+    pytest.param({}, True, False, id="filled"),
+    pytest.param({"title": "Game (Japan)"}, True, True, id="filename-title"),
+    pytest.param({"title": " zzz "}, True, True, id="placeholder-title"),
+    pytest.param({"description": "Game (Japan)"}, True, True, id="filename-description"),
+    pytest.param({"genre": "Other"}, True, True, id="other-genre"),
+    pytest.param({}, False, True, id="missing-thumbnail"),
+    pytest.param({"players": None}, True, False, id="unsupported-missing-field"),
+])
+def test_lookup_plan_uses_source_capabilities_without_mutating_rom(
+    tmp_path: Path, rom: Rom, changes: dict, has_thumbnail: bool, expected: bool,
+) -> None:
+    rom.entry.update(
+        title="Manual title", description="A meaningful synopsis.", region=["Japan"],
+        year=1991, players=2, genre="Action",
+    )
+    rom.entry.update(changes)
+    rom.has_thumbnail = has_thumbnail
+    before = deepcopy(rom.entry)
+    provider = build_provider(HttpClient(tmp_path / "cache"), environ={}, source_names=["openvgdb", "libretro"])
+
+    result = provider.needs_lookup(rom)
+
+    assert result is expected
+    assert rom.entry == before
+    assert rom.has_thumbnail is has_thumbnail
+
+
+@pytest.mark.parametrize("sources, environ, expected", [
+    pytest.param([], {}, False, id="no-sources"),
+    pytest.param(["thegamesdb"], {}, False, id="missing-key"),
+    pytest.param(["thegamesdb"], {"ICAT_THEGAMESDB_API_KEY": "synthetic-key"}, True, id="enabled"),
+])
+def test_lookup_plan_requires_enabled_sources(
+    tmp_path: Path, rom: Rom, sources: list[str], environ: dict[str, str], expected: bool,
+) -> None:
+    before = deepcopy(rom.entry)
+    provider = build_provider(HttpClient(tmp_path / "cache"), environ=environ, source_names=sources)
+
+    result = provider.needs_lookup(rom)
+
+    assert result is expected
+    assert rom.entry == before
+
+
 @pytest.mark.parametrize("full_match", [True, False])
 def test_nes_extra_data_prefers_full_hash_then_uses_payload_fallback(
     tmp_path: Path, nes: bytes, lookup_response: dict, response_mock: Callable[..., Any], full_match: bool,

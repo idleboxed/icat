@@ -322,4 +322,4 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
 
-    return 3 if result.rejected else 0
+    return 3 if result.has_issues else 0

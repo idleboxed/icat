@@ -12,7 +12,7 @@ from typing import Literal
 
 logger = logging.getLogger(__name__)
 StepStatus = Literal["pending", "running", "done", "not_needed", "failed", "interrupted"]
-RunStatus = Literal["running", "complete", "complete_with_rejections", "failed", "interrupted"]
+RunStatus = Literal["running", "complete", "complete_with_rejections", "complete_with_skips", "failed", "interrupted"]
 
 
 @dataclass(frozen=True)
@@ -55,6 +55,7 @@ class RunInventory:
     duplicate_sources: int = 0
     rejected_sources: int = 0
     skipped_sources: int = 0
+    skipped_images: int = 0
 
 
 @dataclass(frozen=True)
@@ -103,7 +104,7 @@ class ProgressSnapshot:
     def percent(self) -> int:
         """Return overall progress, reserving completion until the run has finished."""
 
-        if self.status in {"complete", "complete_with_rejections"}:
+        if self.status in {"complete", "complete_with_rejections", "complete_with_skips"}:
             return 100
 
         fraction = sum(step.fraction or 0 for step in self.steps)
@@ -125,6 +126,7 @@ class RunProgress:
         self.status: RunStatus = "running"
         self.inventory = RunInventory()
         self.rejected = False
+        self.skipped = False
 
     def __enter__(self) -> "RunProgress":
         self.started = monotonic()
@@ -163,7 +165,7 @@ class RunProgress:
         self, *, source_files: int | None = None, candidate_sources: int | None = None,
         catalogue_entries: int | None = None, prepared_games: int | None = None,
         duplicate_sources: int | None = None, rejected_sources: int | None = None,
-        skipped_sources: int | None = None,
+        skipped_sources: int | None = None, skipped_images: int | None = None,
     ) -> None:
         """Update known inventory counts without clearing values omitted by the caller."""
         changes = {
@@ -172,6 +174,7 @@ class RunProgress:
                 ("catalogue_entries", catalogue_entries),
                 ("prepared_games", prepared_games), ("duplicate_sources", duplicate_sources),
                 ("rejected_sources", rejected_sources), ("skipped_sources", skipped_sources),
+                ("skipped_images", skipped_images),
             ) if value is not None
         }
 
@@ -225,4 +228,8 @@ class RunProgress:
 
         self._finish_step()
         self.status = "complete_with_rejections" if self.rejected else "complete"
+
+        if self.skipped and not self.rejected:
+            self.status = "complete_with_skips"
+
         self._update()

@@ -185,11 +185,12 @@ def resolve_relative_file(root: Path, name: str) -> Path:
     for component in Path(name).parts:
 
         if current.is_dir():
+            folded = component.casefold()
 
-            for sibling in current.iterdir():
+            for sibling in os.listdir(current):
 
-                if sibling.name.casefold() == component.casefold() and sibling.name != component:
-                    raise CatalogueError("Case-insensitive destination collision", path=sibling)
+                if sibling != component and sibling.casefold() == folded:
+                    raise CatalogueError("Case-insensitive destination collision", path=current / sibling)
 
         current = current / component
 

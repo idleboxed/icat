@@ -6,6 +6,18 @@ import pytest
 from icat.errors import CatalogueError, SourceError
 from icat.reporting.diagnostics import Diagnostics
 from icat.roms.inspection import inspect_rom
+from icat.roms.platforms import EXTENSIONS
+
+
+@pytest.mark.parametrize("suffix", sorted(EXTENSIONS))
+def test_empty_rom_is_rejected_for_every_supported_extension(tmp_path: Path, suffix: str) -> None:
+    path = tmp_path / f"empty{suffix}"
+    path.touch()
+
+    with pytest.raises(SourceError, match="Empty ROM"):
+        inspect_rom(path, path.name)
+
+    assert path.read_bytes() == b""
 
 
 def test_invalid_nes_payload_remains_rejected(tmp_path: Path, nes: bytes) -> None:
@@ -183,7 +195,7 @@ def test_canonical_n64_magic_does_not_duplicate_lookup(
     assert path.read_bytes() == canonical
 
 
-@pytest.mark.parametrize("data", [b"", bytes(16384), b"NES\x1a" + bytes(12)])
+@pytest.mark.parametrize("data", [bytes(16384), b"NES\x1a" + bytes(12)])
 def test_missing_nes_payload_or_header_remains_rejected(tmp_path: Path, data: bytes) -> None:
     path = tmp_path / "broken.nes"
     path.write_bytes(data)

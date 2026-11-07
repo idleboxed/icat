@@ -43,11 +43,11 @@ where a source can identify the game; otherwise the filename supplies the title
 and optional fields remain `null`. Genre names are normalized; unknown genres
 become `null` with a warning.
 
-Run the same command with the updated icat to fill missing thumbnails. Existing
-ROMs are inspected again, including the additional identities described in
-[Metadata lookup](30_formats.md#metadata-lookup). No reimport or cache deletion is
-needed to compute them; stored ROMs and their catalogue IDs remain unchanged.
-Even an identified game may have no snapshot in the source.
+Run the same command to fill missing thumbnails. [Lookup identities](30_formats.md#metadata-lookup)
+are computed when needed and reused from the PC cache, without rereading every ROM.
+Neither `metadata` nor `sync` fully audits existing games; imported copies and MOVE
+destinations still receive SHA verification. No reimport or cache deletion is needed;
+stored ROMs and catalogue IDs remain unchanged. An identified game may still lack a snapshot.
 
 Metadata titled `ZZZ` is ignored, and an existing `ZZZ` title is treated as missing.
 ROMs are not removed based on external classifications such as demo or non-game.
@@ -128,7 +128,7 @@ redirected output uses it automatically. Missing metadata does not mean a reject
 | `0` | Completed. |
 | `1` | Stopped by an error. |
 | `2` | Invalid command arguments. |
-| `3` | Completed with rejected source files. |
+| `3` | Completed with rejected sources or skipped indexed ROMs. |
 | `130` | Cancelled with Ctrl+C. |
 
 `--logs_dir PATH` selects the log root, defaulting to `logs/` in the current directory.
@@ -144,8 +144,11 @@ The `thumbnail.filename_fallback` counter under `diagnostics.counts.libretro`
 counts exact filename-based thumbnail lookups without a verified canonical title.
 It does not mean that the whole platform lacks snapshots.
 
-Bad ROMs are rejected individually. I/O errors, destination conflicts and a corrupt
-existing catalogue stop the operation. Completed writes and removals are not rolled back.
+Bad source ROMs are rejected individually. Both `sync` and `metadata` skip missing,
+empty and other detected invalid indexed ROMs, preserving their records and files;
+reasons are in `skipped_images` in the run journal. MOVE retains related sources.
+I/O errors, unsafe paths, catalogue conflicts, detected file changes and publication
+failures still stop the operation. Completed writes and removals are not rolled back.
 After an interrupted run, check the journal and confirm that no icat process or
 other writer is active before removing leftover `.icat.lock` or `.icat-stage-*`
 inside the destination and retrying.

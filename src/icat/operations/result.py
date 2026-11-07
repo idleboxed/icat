@@ -37,13 +37,23 @@ class Result:
     mode: str = "COPY"
     journal_path: Path | None = None
     duration_seconds: float = 0
+    skipped_images: int = 0
+
+    @property
+    def has_issues(self) -> bool:
+        """Report rejections or skipped catalogue images requiring user attention."""
+        return bool(self.rejected or self.skipped_images)
 
 def log_result(result: Result) -> None:
     """Present a concise run summary, including rejections and exit status."""
     status = "COMPLETED WITH REJECTIONS" if result.rejected else "COMPLETED"
+
+    if result.skipped_images:
+        status = "COMPLETED WITH SKIPS" if not result.rejected else "COMPLETED WITH REJECTIONS AND SKIPS"
+
     elapsed = int(result.duration_seconds)
     logger.info(
-        "%s · exit %d · elapsed %02d:%02d", status, 3 if result.rejected else 0, elapsed // 60, elapsed % 60,
+        "%s · exit %d · elapsed %02d:%02d", status, 3 if result.has_issues else 0, elapsed // 60, elapsed % 60,
         extra={"icat_summary": status},
     )
     logger.info("Games: %d new; %d existing updated; %d total", result.imported, result.updated_existing, result.total)
@@ -91,6 +101,12 @@ def log_result(result: Result) -> None:
             result.rejected,
         )
 
+    if result.skipped_images:
+        logger.warning(
+            "%d indexed ROMs skipped; records and files retained. Next: inspect skipped_images in the run journal.",
+            result.skipped_images,
+        )
+
     if result.journal_path is not None:
         logger.info("%s — saved", result.journal_path)
 
@@ -107,16 +123,17 @@ def finish(session: Session) -> Result:
 
     progress.start("finalize")
     missing_images = sum(
-        not (dst / layout.THUMBS_DIR / layout.get_thumbnail_name(digest)).is_file() for digest in unique
+        not (dst / layout.THUMBS_DIR / layout.get_thumbnail_name(digest)).is_file() for digest in by_hash
     )
     result = Result(
         len(set(unique) - existing_hashes),
         len(ordered),
         len(journal["removed"]),
-        sum(is_description_missing(by_hash[digest]) for digest in unique),
+        sum(is_description_missing(entry) for entry in ordered),
         missing_images,
         len(trash_entries),
         len(journal["rejected_sources"]),
+        skipped_images=len(session.skipped_hashes),
     )
     counts = diagnostics.get_snapshot()["counts"]
     skip_reasons = {
@@ -125,7 +142,7 @@ def finish(session: Session) -> Result:
                        "missing_mega_drive_signature")
         if counts.get("transport", {}).get(f"source.{reason}", 0)
     }
-    journal["metadata_status"] = "partial" if any(
+    journal["metadata_status"] = "partial" if result.skipped_images or any(
         values.get("lookup.unavailable", 0) or values.get("lookup.partial", 0)
         or values.get("lookup.offline_miss", 0) for values in counts.values()
     ) else "complete"
@@ -133,6 +150,7 @@ def finish(session: Session) -> Result:
         "imported": result.imported, "total": result.total, "removed": result.removed,
         "rejected": result.rejected, "skipped": len(journal["skipped_sources"]), "trashed": result.trashed,
         "excluded": result.excluded,
+        "skipped_images": result.skipped_images, "retained_sources": len(journal.get("retained_sources", [])),
         "excluded_files_removed": len(journal["excluded_removed"]),
         "missing": {
             **{
@@ -157,6 +175,10 @@ def finish(session: Session) -> Result:
         any(journal["summary"]["missing"].values()) or journal["summary"]["genre_other"]
     ) else "complete"
     journal["state"] = "complete_with_rejections" if journal["rejected_sources"] else "complete"
+
+    if result.skipped_images and not result.rejected:
+        journal["state"] = "complete_with_skips"
+
     result = replace(
         result, accepted_sources=len(sources), duplicate_sources=journal["summary"]["duplicate_sources"],
         skipped_sources=len(journal["skipped_sources"]), other_source_files=inventory.files - len(paths),

@@ -2,6 +2,7 @@
 
 import hashlib
 import logging
+import os
 import zlib
 from pathlib import Path
 
@@ -32,6 +33,13 @@ def inspect_rom(
 
     suffix = Path(name).suffix.lower()
 
+    with open_regular_file(path) as stream:
+        size = os.fstat(stream.fileno()).st_size
+        header = stream.read(512)
+
+    if size == 0:
+        raise SourceError("Empty ROM", path=diagnostic_path)
+
     if suffix == ".chd":
         try:
             platform = detect_platform(path)
@@ -41,12 +49,7 @@ def inspect_rom(
 
         # Container hashes identify the copied file, not Redump tracks. Do not pass
         # CHD header/raw hashes to cartridge metadata providers as game identities.
-        return Rom(path, create_empty_entry(name, compute_sha256(path), platform), [])
-
-    size = path.stat().st_size
-
-    with open_regular_file(path) as stream:
-        header = stream.read(512)
+        return Rom(path, create_empty_entry(name, compute_sha256(path), platform), [], size=size)
 
     platform = EXTENSIONS.get(suffix)
     needs_md_identity = suffix == ".bin" and header[256:260] != b"SEGA"
@@ -170,5 +173,5 @@ def inspect_rom(
 
     return Rom(
         path, create_empty_entry(name, full_digest, platform), lookups,
-        crc32s=crc32s, full_lookup=full_lookup,
+        crc32s=crc32s, full_lookup=full_lookup, size=size,
     )

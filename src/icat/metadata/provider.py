@@ -83,22 +83,32 @@ class Provider:
 
         return results
 
+    def needs_lookup(self, rom: Rom) -> bool:
+        """Report whether enabled sources can fill any missing metadata for this game."""
+        context = self.create_context(rom)
+        available = frozenset().union(*(
+            source.provides for source in self.sources if not source.key_env or source.key
+        ))
+        return bool(context.missing & available)
+
+    @staticmethod
+    def create_context(rom: Rom) -> LookupContext:
+        """Build the same missing-field view for planning and source lookup."""
+        values = dict(rom.entry)
+
+        if is_description_missing(values):
+            values["description"] = None
+
+        if is_placeholder_title(values.get("title")):
+            values["title"] = None
+
+        return LookupContext(rom, values, has_thumbnail=rom.has_thumbnail)
+
     def iter_lookup(
         self, roms: Sequence[Rom], *, executor: Executor | None = None, max_pending: int = 1,
     ) -> Iterator[tuple[int, Metadata]]:
         """Finish sources in priority order, packing eligible identities across all ROMs."""
-        contexts = []
-
-        for rom in roms:
-            values = dict(rom.entry)
-
-            if is_description_missing(values):
-                values["description"] = None
-
-            if is_placeholder_title(values.get("title")):
-                values["title"] = None
-
-            contexts.append(LookupContext(rom, values, has_thumbnail=rom.has_thumbnail))
+        contexts = [self.create_context(rom) for rom in roms]
 
         combined = [Metadata() for _context in contexts]
         progress = None

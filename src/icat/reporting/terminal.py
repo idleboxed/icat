@@ -136,7 +136,8 @@ def format_inventory_label(inventory: RunInventory) -> str:
         "?" if value is None else f"{value}"
         for value in (inventory.source_files, inventory.candidate_sources, inventory.catalogue_entries)
     )
-    return f"Source: {files} files at scan · {candidates} candidates | Catalogue: {records} confirmed records"
+    skipped = f" · {inventory.skipped_images} ROMs skipped" if inventory.skipped_images else ""
+    return f"Source: {files} files at scan · {candidates} candidates | Catalogue: {records} confirmed records{skipped}"
 
 
 def format_provider_label(provider: ProviderProgress) -> str:
@@ -238,14 +239,16 @@ class PlainProgressHandler(logging.StreamHandler):
             if previous is None or previous.index != snapshot.index:
                 self.provider = None
 
-            if snapshot.status in {"complete", "complete_with_rejections"}:
+            if snapshot.status in {"complete", "complete_with_rejections", "complete_with_skips"}:
                 return
 
             inventory = snapshot.inventory
-            inventory_values = (inventory.source_files, inventory.candidate_sources, inventory.catalogue_entries)
+            inventory_values = (
+                inventory.source_files, inventory.candidate_sources, inventory.catalogue_entries, inventory.skipped_images,
+            )
             inventory_changed = previous is None or (
                 previous.inventory.source_files, previous.inventory.candidate_sources,
-                previous.inventory.catalogue_entries,
+                previous.inventory.catalogue_entries, previous.inventory.skipped_images,
             ) != inventory_values
             boundary = previous is None or (previous.index, previous.status) != (snapshot.index, snapshot.status)
             now = monotonic()
@@ -343,7 +346,7 @@ class RichProgressHandler(logging.Handler):
             style = "red" if record.levelno >= logging.ERROR else "yellow" if record.levelno >= logging.WARNING else ""
 
             if summary := getattr(record, "icat_summary", None):
-                style = "bold yellow" if summary == "COMPLETED WITH REJECTIONS" else "bold"
+                style = "bold" if summary == "COMPLETED" else "bold yellow"
 
             self.console.print(Text(sanitize_text(message), style=style))
 
@@ -354,7 +357,7 @@ class RichProgressHandler(logging.Handler):
         """Build the current rich progress panel from the latest snapshot and network activity."""
         snapshot = self.snapshot
 
-        if snapshot is None or snapshot.status in {"complete", "complete_with_rejections"}:
+        if snapshot is None or snapshot.status in {"complete", "complete_with_rejections", "complete_with_skips"}:
             return Group()
 
         current, inventory = snapshot.current, snapshot.inventory

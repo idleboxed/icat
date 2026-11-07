@@ -17,6 +17,7 @@ from ..roms.formats.nes_headers import NesHeaderFixer
 from ..catalogue.preferences import Preferences
 from ..reporting.progress import RunProgress, Step
 from ..roms.types import SourceInventory
+from ..roms.identity_cache import IdentityCache
 from ..roms.discovery import discover_sources
 from .state import Session
 from .options import Options, validate_options
@@ -47,7 +48,7 @@ def run(
             steps.append(Step("scan", "Import sources", "files"))
 
         steps.extend((
-            Step("validate", "Validate existing catalogue"),
+            Step("validate", "Check files & prepare lookups"),
             Step("metadata", "Fetch metadata", "games"),
             Step("publish", "Catalogue & verify"),
         ))
@@ -60,6 +61,7 @@ def run(
     with RunProgress(tuple(steps)) as progress:
         result = _run(options, provider, progress, header_fixer, md_identifier)
         progress.rejected = bool(result.rejected)
+        progress.skipped = bool(result.skipped_images)
 
     result = replace(result, duration_seconds=monotonic() - progress.started)
     log_result(result)
@@ -154,6 +156,7 @@ def _run(
             provider=provider, diagnostics=diagnostics, progress=progress, operation=operation,
             catalogue_path=catalogue_path, original=original, entries=entries, inventory=inventory,
             preferences=preferences, header_fixer=header_fixer, md_identifier=md_identifier,
+            identity_cache=IdentityCache(cache),
         )
         apply_trash(session)
 

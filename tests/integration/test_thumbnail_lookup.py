@@ -23,6 +23,7 @@ from icat.metadata.sources.platforms import LIBRETRO
 from icat.metadata.thumbnails import convert
 from icat.operations.options import Options
 from icat.operations.session import run
+from icat.roms.identity_cache import IdentityCache
 from icat.roms.inspection import inspect_rom
 from icat.roms.types import Rom
 
@@ -119,10 +120,11 @@ def test_import_preserves_encoded_rom_and_finds_snapshot(
     assert event["transformation"]
 
 
+@pytest.mark.parametrize("warm_cache", [False, True])
 def test_metadata_fills_snapshots_without_rewriting_library(
     options: Options, provider: Any, lookup_image: Callable[[str], tuple[str, str, bytes, bytes]],
     libretro_dat_rule: Callable[..., str], thumbnail_index_rules: Callable[..., list[str]],
-    response_mock: Callable[..., Any], png: bytes,
+    response_mock: Callable[..., Any], png: bytes, warm_cache: bool,
 ) -> None:
     prepared = {}
 
@@ -135,6 +137,10 @@ def test_metadata_fills_snapshots_without_rewriting_library(
         )
 
     run(replace(options, fix_nes_headers=False), provider)
+
+    if not warm_cache:
+        (options.cache / IdentityCache.FILE_NAME).unlink()
+
     catalogue = options.dst / "catalogue.json"
     entries = {entry["platform"]: entry for entry in decode(catalogue.read_bytes())}
     existing = entries["MD"]["hash"]
@@ -193,12 +199,21 @@ def test_metadata_fills_snapshots_without_rewriting_library(
         event["sha256"]: event for event in journal["diagnostics"]["events"]
         if event["kind"] == "identity" and event["outcome"] == "normalized_lookup"
     }
-    assert set(normalized) == {entry["hash"] for entry in entries.values()}
+    expected_normalized = set() if warm_cache else {entries[platform]["hash"] for platform in ("N64", "SNES")}
+    assert set(normalized) == expected_normalized
+    expected_by_hash = {rom.entry["hash"]: rom for rom in prepared.values()}
 
-    for expected in prepared.values():
-        event = normalized[expected.entry["hash"]]
+    for digest, event in normalized.items():
+        expected = expected_by_hash[digest]
         assert (event["sha1"], event["size"]) == expected.lookups[-1]
         assert event["crc32"] == expected.crc32s[expected.lookups[-1]]
+
+    for platform in ("N64", "SNES"):
+        entry = entries[platform]
+        cached = IdentityCache(options.cache).get(options.dst / "images" / entry["image"], entry)
+        assert cached is not None
+        assert cached.lookups == prepared[platform].lookups
+        assert cached.crc32s == prepared[platform].crc32s
 
     assert journal["diagnostics"]["counts"]["libretro"]["thumbnail.filename_fallback"] == 1
     fallback_sources = journal["metadata_sources"][entries["SNES"]["hash"]]

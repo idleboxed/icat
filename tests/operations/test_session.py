@@ -18,6 +18,7 @@ from icat.metadata.types import Metadata, LookupContext
 from icat.metadata.provider import Provider
 from icat.io.http import HttpClient
 from icat.roms.types import Rom
+from icat.roms.identity_cache import IdentityCache
 from icat.metadata.sources.base import MetadataSource
 from icat.operations.options import Options
 from icat.operations.session import run
@@ -93,7 +94,11 @@ def test_nes_extra_data_is_published_unchanged_even_without_metadata(
     assert (result.imported, result.rejected, result.removed) == (1, 0, int(move))
     entry = decode((options.dst / "catalogue.json").read_bytes())[0]
     assert entry["hash"] == hashlib.sha256(data).hexdigest()
-    assert (options.dst / "images" / entry["image"]).read_bytes() == data
+    image = options.dst / "images" / entry["image"]
+    assert image.read_bytes() == data
+    cached = IdentityCache(options.cache).get(image, entry)
+    assert cached is not None
+    assert cached.size == len(data)
 
     if move:
         assert not path.exists()
@@ -206,28 +211,29 @@ def test_copy_then_move_is_idempotent_and_keeps_preferences(options: Options, pr
     assert prefs.read_text() == "{\"custom\":true}"
 
 
-@pytest.mark.parametrize("container", ["nes", "zip", "7z"])
+@pytest.mark.parametrize("container", ["raw", "zip", "7z"])
 @pytest.mark.parametrize("move", [False, True])
+@pytest.mark.parametrize("suffix, bad_data, reason", [("nes", b"not a ROM", "invalid ines"), ("smc", b"", "empty")])
 def test_bad_rom_is_retained_and_roms_before_and_after_it_are_imported(
     options: Options, provider: Any, nes: bytes, sevenzip_archive: Callable[..., Path],
-    caplog: pytest.LogCaptureFixture, container: str, move: bool,
+    caplog: pytest.LogCaptureFixture, container: str, move: bool, suffix: str, bad_data: bytes, reason: str,
 ) -> None:
     before = options.src / "a.nes"
     after = options.src / "z.nes"
     before.write_bytes(nes)
     after.write_bytes(nes[:-1] + b"D")
-    bad = options.src / f"bad.{container}"
+    bad = options.src / f"bad.{suffix if container == "raw" else container}"
 
     if container == "zip":
 
         with zipfile.ZipFile(bad, "w") as archive:
-            archive.writestr("broken.nes", b"not a ROM")
+            archive.writestr(f"broken.{suffix}", bad_data)
 
     elif container == "7z":
-        sevenzip_archive(bad, [("broken.nes", b"not a ROM")])
+        sevenzip_archive(bad, [(f"broken.{suffix}", bad_data)])
 
     else:
-        bad.write_bytes(b"not a ROM")
+        bad.write_bytes(bad_data)
 
     original = bad.read_bytes()
 
@@ -250,7 +256,7 @@ def test_bad_rom_is_retained_and_roms_before_and_after_it_are_imported(
     journal = json.loads(next(options.logs.rglob("journal.json")).read_bytes())
     assert journal["state"] == "complete_with_rejections"
     assert journal["rejected_sources"][0]["path"] == f"{bad}"
-    assert "Invalid iNES" in journal["rejected_sources"][0]["reason"]
+    assert reason in journal["rejected_sources"][0]["reason"].lower()
     assert f"{bad}" not in journal["removed"]
     assert not list(options.dst.glob(".icat-stage-*"))
 
@@ -291,7 +297,9 @@ def test_fatal_staging_errors_are_not_misreported_as_rejected_roms(
     assert journal["rejected_sources"] == []
 
 
-def test_destination_corruption_blocks_overwrite_and_removal(options: Options, provider: Any, nes: bytes) -> None:
+def test_destination_corruption_skips_game_without_overwrite_or_source_removal(
+    options: Options, provider: Any, nes: bytes,
+) -> None:
     source = options.src / "a.nes"
     source.write_bytes(nes)
     run(options, provider)
@@ -299,9 +307,10 @@ def test_destination_corruption_blocks_overwrite_and_removal(options: Options, p
     target = options.dst / "images" / entry["image"]
     target.write_bytes(b"different")
 
-    with pytest.raises(CatalogueError, match="refusing overwrite"):
-        run(replace(options, move_roms=True), provider)
+    result = run(replace(options, move_roms=True), provider)
 
+    assert result.skipped_images == 1
+    assert result.removed == 0
     assert source.read_bytes() == nes
     assert target.read_bytes() == b"different"
 
@@ -665,14 +674,13 @@ def test_source_skip_reasons_are_journaled_even_when_logging_is_disabled(
 
 
 @pytest.mark.parametrize("move", [False, True])
-def test_unchanged_catalogue_reads_rom_at_two_boundaries_without_syncing_image_directories(
+def test_unchanged_catalogue_reuses_identities_without_rom_reads_or_image_directory_sync(
     options: Options, nes: bytes, provider: Any, monkeypatch: pytest.MonkeyPatch, move: bool,
 ) -> None:
     (options.src / "a.nes").write_bytes(nes)
     run(replace(options, move_roms=True), provider)
     catalogue = options.dst / "catalogue.json"
     original = catalogue.read_bytes()
-    image = options.dst / "images" / decode(original)[0]["image"]
     inspections, hashes, directories = [], [], []
     inspect, hash_file, sync_dir = metadata_operations.inspect_rom, files.compute_sha256, files.sync_directory
 
@@ -695,7 +703,7 @@ def test_unchanged_catalogue_reads_rom_at_two_boundaries_without_syncing_image_d
     result = run(replace(options, move_roms=move), provider)
 
     assert (result.imported, result.removed) == (0, 0)
-    assert inspections == hashes == [image]
+    assert inspections == hashes == []
     assert not any(path == options.dst / "images" or options.dst / "images" in path.parents for path in directories)
     assert catalogue.read_bytes() == original
 
@@ -734,15 +742,20 @@ def test_new_images_share_directory_sync_before_catalogue_and_source_removal(
     assert counts[options.dst / "images"] == counts[options.dst / "images" / "NES"] == 1
 
 
-@pytest.mark.parametrize("mutation", ["corrupt", "replace", "symlink", "remove"])
+@pytest.mark.parametrize("mutation", ["corrupt", "replace", "replace_same", "symlink", "remove"])
+@pytest.mark.parametrize("duplicate", [False, True])
 def test_existing_image_changed_during_metadata_prevents_index_publication(
-    options: Options, nes: bytes, provider: Any, mutation: str,
+    options: Options, nes: bytes, provider: Any, mutation: str, duplicate: bool,
 ) -> None:
     (options.src / "a.nes").write_bytes(nes)
     run(replace(options, move_roms=True), provider)
     catalogue = options.dst / "catalogue.json"
     original = catalogue.read_bytes()
     target = options.dst / "images" / decode(original)[0]["image"]
+    source = options.src / "duplicate.nes"
+
+    if duplicate:
+        source.write_bytes(nes)
 
     class Mutating:
         def lookup(self, rom: Rom) -> Metadata:
@@ -753,15 +766,21 @@ def test_existing_image_changed_during_metadata_prevents_index_publication(
             if mutation in {"corrupt", "replace"}:
                 target.write_bytes(b"corrupt")
 
+            elif mutation == "replace_same":
+                target.write_bytes(nes)
+
             elif mutation == "symlink":
                 target.symlink_to(catalogue)
 
             return Metadata({"year": 1991})
 
-    with pytest.raises(CatalogueError, match="refusing overwrite|Symlink|missing"):
+    with pytest.raises(CatalogueError, match="changed|Symlink|missing"):
         run(options, Mutating())
 
     assert catalogue.read_bytes() == original
+
+    if duplicate:
+        assert source.read_bytes() == nes
 
 
 @pytest.mark.parametrize("failure", [OSError("Synthetic image directory fsync failure"), KeyboardInterrupt()])
@@ -810,7 +829,7 @@ def test_move_readback_checks_only_images_of_sources_being_removed(
     result = run(replace(options, move_roms=True), provider)
 
     assert result.removed == 1 and result.total == 2
-    assert hashes.count(old) == 1
+    assert hashes.count(old) == 0
     new = next(path for path in (options.dst / "images").rglob("*.nes") if path != old)
     assert hashes.count(new) == 2
 

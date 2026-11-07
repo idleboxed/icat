@@ -187,7 +187,7 @@ def test_cli_quotes_archive_members_rejections_and_destination_progress(
     assert archive.is_file() and rejected.is_file()
 
 
-def test_cli_destination_failure_starts_with_quoted_relative_filename(
+def test_cli_skipped_indexed_image_starts_with_quoted_relative_filename(
     options: Options, nes: bytes, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
     source = options.src / "Game.nes"
@@ -207,9 +207,9 @@ def test_cli_destination_failure_starts_with_quoted_relative_filename(
     target.write_bytes(b"changed")
     capsys.readouterr()
 
-    assert main(args) == 1
+    assert main(args) == 3
 
     output = capsys.readouterr()
-    assert f"\"images/{entry["image"]}\" — Sync failed: Existing image differs; refusing overwrite" in output.err
+    assert f"WARN  \"images/{entry["image"]}\" — indexed ROM skipped; record and files retained:" in output.err
     assert f"{target}" not in output.err
     assert source.read_bytes() == nes

@@ -13,6 +13,7 @@ from ..reporting.progress import RunProgress
 from ..roms.formats.mega_drive import MegaDriveIdentifier
 from ..roms.formats.nes_headers import NesHeaderFixer
 from ..roms.types import Rom, Source, SourceInventory
+from ..roms.identity_cache import IdentityCache
 
 
 @dataclass
@@ -32,11 +33,15 @@ class Session:
     preferences: Preferences | None
     header_fixer: NesHeaderFixer | None
     md_identifier: MegaDriveIdentifier | None
+    identity_cache: IdentityCache
     trash_entries: list[dict] = field(default_factory=list)
     by_hash: dict[str, dict] = field(default_factory=dict)
     existing_hashes: set[str] = field(default_factory=set)
     sources: list[Source] = field(default_factory=list)
     unique: dict[str, Rom] = field(default_factory=dict)
+    staged_hashes: set[str] = field(default_factory=set)
+    image_stamps: dict[str, tuple[int, ...]] = field(default_factory=dict)
+    skipped_hashes: set[str] = field(default_factory=set)
     duplicate_paths: set[str] = field(default_factory=set)
     metadata: dict[str, Metadata] = field(default_factory=dict)
     ordered: list[dict] = field(default_factory=list)

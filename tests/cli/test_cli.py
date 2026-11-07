@@ -1,5 +1,7 @@
 import logging
 import re
+import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -8,6 +10,7 @@ from icat.cli import main
 from icat.metadata.provider import Provider
 from icat.operations.options import Options
 from icat.operations.result import Result
+from icat.operations.session import run
 
 
 def test_repeated_cli_does_not_modify_logging_or_write_stdout(
@@ -70,6 +73,38 @@ def test_cli_returns_partial_status_when_all_sources_are_rejected(
     assert "1 rejected source files" in caplog.text
     assert "Sync failed" not in caplog.text
     assert capsys.readouterr().out == ""
+
+
+@pytest.mark.parametrize("command", ["metadata", "sync"])
+def test_cli_reports_partial_completion_for_skipped_indexed_rom(
+    options: Options, provider: Provider, caplog: pytest.LogCaptureFixture, command: str,
+) -> None:
+    caplog.set_level(logging.INFO, logger="icat")
+    source = options.src / "bad.smc"
+    source.write_bytes(b"synthetic SNES image")
+    run(replace(options, move_roms=True), provider)
+    catalogue = options.dst / "catalogue.json"
+    original = catalogue.read_bytes()
+    image = options.dst / "images" / json.loads(original)["games"][0]["image"]
+    image.write_bytes(b"")
+    arguments = [
+        command, "--http-offline", "--dst", f"{options.dst}", "--cache", f"{options.cache}",
+        "--logs_dir", f"{options.logs}",
+    ]
+
+    if command == "sync":
+        arguments.extend(["--src", f"{options.src}", "--move-roms"])
+
+    caplog.clear()
+
+    result = main(arguments)
+
+    assert result == 3
+    assert catalogue.read_bytes() == original
+    assert image.read_bytes() == b""
+    assert "COMPLETED WITH SKIPS · exit 3" in caplog.text
+    assert "1 indexed ROMs skipped" in caplog.text
+    assert "failed" not in caplog.text.lower()
 
 @pytest.mark.parametrize("value", ["0", "33", "-2"])
 def test_bad_concurrency_is_a_cli_error(value: str) -> None:
