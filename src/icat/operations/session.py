@@ -24,7 +24,7 @@ from .options import Options, validate_options
 from .result import Result, finish, finish_trash, log_result
 from .imports import import_sources, remove_sources
 from .metadata import update_metadata
-from .publication import lock_destination, publish_games
+from .publication import publish_games
 from .trash import apply_trash
 from ..io import paths as layout
 
@@ -123,13 +123,7 @@ def _run(
         header_fixer.http.diagnostics = diagnostics
         header_fixer.datasets.diagnostics = diagnostics
 
-    with (
-        RunJournal(log_root, config, diagnostics) as operation,
-        lock_destination(dst),
-        (nullcontext(None) if options.trash_only else tempfile.TemporaryDirectory(
-            prefix=layout.STAGING_PREFIX, dir=dst,
-        )) as temp,
-    ):
+    with RunJournal(log_root, config, diagnostics) as operation:
         inventory = (
             discover_sources(src, platforms=options.platforms, diagnostics=diagnostics)
             if src is not None else SourceInventory(0, [])
@@ -152,7 +146,7 @@ def _run(
             preferences.check_unchanged()
 
         session = Session(
-            options=options, src=src, dst=dst, staging=Path(temp) if temp is not None else None,
+            options=options, src=src, dst=dst, staging=None,
             provider=provider, diagnostics=diagnostics, progress=progress, operation=operation,
             catalogue_path=catalogue_path, original=original, entries=entries, inventory=inventory,
             preferences=preferences, header_fixer=header_fixer, md_identifier=md_identifier,
@@ -163,9 +157,15 @@ def _run(
         if options.trash_only:
             return finish_trash(session)
 
-        import_sources(session)
-        update_metadata(session)
-        publish_games(session)
+        with (
+            tempfile.TemporaryDirectory(prefix=layout.STAGING_PREFIX, dir=dst) if paths else nullcontext(None)
+        ) as temp:
+            session.staging = Path(temp) if temp is not None else None
+            import_sources(session)
+            update_metadata(session)
+            publish_games(session)
+
+        session.staging = None
 
         if options.move_roms:
             remove_sources(session)

@@ -188,7 +188,6 @@ def test_bad_preferences_fail_before_import_or_deletion(
     assert prefs.read_bytes() == content
     assert source.read_bytes() == nes
     assert all(path.read_bytes() == data for path, data in original_files.items())
-    assert not (options.dst / ".icat.lock").exists()
 
 
 @pytest.mark.parametrize("broken", ["image", "thumb", "image-parent", "prefs", "dangling-prefs"])
@@ -256,7 +255,6 @@ def test_partial_cleanup_keeps_index_paths_and_can_be_retried(
 
     assert not first.exists() and thumb.exists()
     assert decode((options.dst / "catalogue.json").read_bytes()) == library
-    assert not (options.dst / ".icat.lock").exists()
     assert not list(options.dst.glob(".icat-stage-*"))
     reports = [json.loads(path.read_bytes()) for path in options.logs.rglob("journal.json")]
     report = next(entry for entry in reports if entry.get("failed_stage") == "removing_trash")
@@ -418,7 +416,6 @@ def test_reset_write_failure_preserves_preferences_and_sources(
     assert prefs.read_bytes() == original
     assert source.read_bytes() == nes
     assert decode((options.dst / "catalogue.json").read_bytes()) == library
-    assert not (options.dst / ".icat.lock").exists()
 
 
 def test_external_preferences_change_before_reset_is_preserved(

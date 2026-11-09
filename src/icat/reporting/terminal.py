@@ -20,7 +20,7 @@ from rich.text import Text
 from ..errors import CatalogueError, SourceError
 from .diagnostics import Diagnostics, NetworkActivity
 from ..io.paths import quote_path
-from .progress import ProgressSnapshot, ProviderProgress, RunInventory, StepProgress
+from .progress import ProgressSnapshot, ProviderProgress, StepProgress
 
 
 LOG_FORMAT = "%(message)s"
@@ -130,14 +130,29 @@ def format_progress_label(snapshot: ProgressSnapshot) -> str:
     return f"[{snapshot.index + 1}/{len(snapshot.steps)}] {snapshot.current.step.title}"
 
 
-def format_inventory_label(inventory: RunInventory) -> str:
-    """Describe known source and catalogue counts without inventing unknown values."""
+def format_inventory_label(snapshot: ProgressSnapshot) -> str:
+    """Describe inventory relevant to the run plan without inventing unknown values."""
+    inventory = snapshot.inventory
     files, candidates, records = (
         "?" if value is None else f"{value}"
         for value in (inventory.source_files, inventory.candidate_sources, inventory.catalogue_entries)
     )
     skipped = f" · {inventory.skipped_images} ROMs skipped" if inventory.skipped_images else ""
-    return f"Source: {files} files at scan · {candidates} candidates | Catalogue: {records} confirmed records{skipped}"
+
+    if any(step.step.key == "scan" for step in snapshot.steps):
+        return (
+            f"Source: {files} files at scan · {candidates} candidates | Catalogue: {records} confirmed records{skipped}"
+        )
+
+    label = f"Catalogue: {records} records{skipped}"
+    metadata = next((step for step in snapshot.steps if step.step.key == "metadata"), None)
+
+    if metadata is not None and metadata.total is not None:
+        label += (
+            f" | Metadata: {metadata.total} lookup candidates · {inventory.metadata_changed} record updates prepared"
+        )
+
+    return label
 
 
 def format_provider_label(provider: ProviderProgress) -> str:
@@ -191,6 +206,8 @@ class PlainProgressHandler(logging.StreamHandler):
         self.provider: ProviderProgress | None = None
         self.last_progress = 0.0
         self.last_provider_progress = 0.0
+        self.last_inventory_progress = 0.0
+        self.inventory_label: str | None = None
         self.groups = WarningGroups()
         self.setFormatter(MessageFormatter(destination))
 
@@ -243,13 +260,8 @@ class PlainProgressHandler(logging.StreamHandler):
                 return
 
             inventory = snapshot.inventory
-            inventory_values = (
-                inventory.source_files, inventory.candidate_sources, inventory.catalogue_entries, inventory.skipped_images,
-            )
-            inventory_changed = previous is None or (
-                previous.inventory.source_files, previous.inventory.candidate_sources,
-                previous.inventory.catalogue_entries, previous.inventory.skipped_images,
-            ) != inventory_values
+            inventory_label = format_inventory_label(snapshot)
+            inventory_changed = self.inventory_label != inventory_label
             boundary = previous is None or (previous.index, previous.status) != (snapshot.index, snapshot.status)
             now = monotonic()
             show_step = boundary or now - self.last_progress >= 5
@@ -261,8 +273,13 @@ class PlainProgressHandler(logging.StreamHandler):
                 self.last_progress = now
                 self.write_line(f"{format_progress_label(snapshot)} · {format_step_label(snapshot.current)}")
 
-            if inventory_changed and all(value is not None for value in inventory_values):
-                self.write_line(format_inventory_label(inventory))
+            if (
+                inventory_changed and inventory.catalogue_entries is not None
+                and (boundary or self.inventory_label is None or now - self.last_inventory_progress >= 5)
+            ):
+                self.write_line(inventory_label)
+                self.inventory_label = inventory_label
+                self.last_inventory_progress = now
 
             if not show_step:
                 return
@@ -289,7 +306,6 @@ class RichProgressHandler(logging.Handler):
         self.diagnostics = diagnostics
         self.snapshot: ProgressSnapshot | None = None
         self.provider: ProviderProgress | None = None
-        self.last_issue: str | None = None
         self.journal: str | None = None
         self.mode = ""
         self.groups = WarningGroups()
@@ -336,9 +352,6 @@ class RichProgressHandler(logging.Handler):
                 self.flush_repeats()
 
             message = self.format(record)
-
-            if record.levelno >= logging.WARNING:
-                self.last_issue = message
 
             if not self.groups.accept(message, record.levelno, identity=record.getMessage()):
                 return
@@ -398,18 +411,15 @@ class RichProgressHandler(logging.Handler):
                 }.get(wait.state, wait.state)
                 rows.append(Text(sanitize_text(f"Waiting for {reason}: {wait.host}{delay}"), style="yellow"))
 
-        rows.append(Text(format_inventory_label(inventory)))
+        rows.append(Text(format_inventory_label(snapshot)))
 
-        if self.mode in {"", "COPY", "MOVE"}:
+        if any(step.step.key == "scan" for step in snapshot.steps):
             rows.append(Text(
                 f"Prepared: {inventory.prepared_games} new games · {inventory.duplicate_sources} duplicate sources"
             ))
             rows.append(Text(
                 f"Rejected: {inventory.rejected_sources} · skipped: {inventory.skipped_sources} · these sources kept"
             ))
-
-        if self.last_issue:
-            rows.append(Text(sanitize_text(f"Last issue: {self.last_issue}"), overflow="ellipsis", no_wrap=True))
 
         if self.journal:
             rows.append(Text(f"{sanitize_text(quote_path(Path(self.journal).name))} — run journal", overflow="fold"))

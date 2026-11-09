@@ -123,6 +123,11 @@ icat neither creates nor deletes them, even when a game is removed.
 Messages and progress go to stderr. `--progress plain` selects line-based output;
 redirected output uses it automatically. Missing metadata does not mean a rejected ROM.
 
+For `metadata`, progress shows catalogue records, skipped ROMs, lookup candidates
+and records with prepared updates, without unused source-file counters. Prepared
+updates are not saved until the catalogue is written and verified. Warnings and
+errors stay in the diagnostic output; the live panel does not repeat them.
+
 | Exit code | Meaning |
 |---|---|
 | `0` | Completed. |
@@ -149,9 +154,16 @@ empty and other detected invalid indexed ROMs, preserving their records and file
 reasons are in `skipped_images` in the run journal. MOVE retains related sources.
 I/O errors, unsafe paths, catalogue conflicts, detected file changes and publication
 failures still stop the operation. Completed writes and removals are not rolled back.
-After an interrupted run, check the journal and confirm that no icat process or
-other writer is active before removing leftover `.icat.lock` or `.icat-stage-*`
-inside the destination and retrying.
+
+Stop IGUI and other writers before running icat, and do not run multiple icat
+operations on the same destination at once.
+
+Temporary `.icat-stage-*` directories are needed only when importing source ROMs.
+They are removed after publication, on an error or on Ctrl+C; metadata-only and
+trash-only operations do not create them. A forced kill or a cleanup I/O error
+can still leave staging files behind. After an interrupted run, check the journal
+and confirm that no icat process or other writer is active before removing such
+leftovers inside the destination and retrying.
 
 For the full option list, use `icat sync --help`, `icat metadata --help` or
 `icat trash clean --help`.

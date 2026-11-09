@@ -1,9 +1,7 @@
-"""Lock, publish, synchronize and read back the destination catalogue."""
+"""Publish, synchronize and read back the destination catalogue."""
 
 
 import os
-from collections.abc import Iterator
-from contextlib import contextmanager
 from pathlib import Path
 
 from ..catalogue.codec import LIMIT, encode
@@ -16,36 +14,12 @@ from ..io.files import (
     get_file_stamp,
     read_bytes,
     resolve_relative_file,
-    sync_directory,
     verify_sha256,
 )
 from ..roms.types import Rom
 from .state import Session
 from ..io import paths as layout
 
-
-@contextmanager
-def lock_destination(dst: Path) -> Iterator[None]:
-    """Hold a destination lock until context exit; reject another active operation."""
-    path = dst / layout.LOCK_FILE
-
-    try:
-
-        with path.open("x", encoding="ascii") as stream:
-            stream.write(f"pid={os.getpid()}\n")
-            stream.flush()
-            os.fsync(stream.fileno())
-
-    except FileExistsError:
-        raise CatalogueError("Destination is locked; inspect interrupted/concurrent sync first", path=path) from None
-
-    try:
-        sync_directory(dst)
-        yield
-
-    finally:
-        path.unlink()
-        sync_directory(dst)
 
 def check_catalogue(path: Path, original: bytes | None) -> None:
     """Reject a catalogue whose presence or bytes changed since the operation began."""
@@ -143,6 +117,7 @@ def publish_games(session: Session) -> None:
                 digest, {"thumbnail": result.field_sources.get("thumbnail", "unknown")}, result.sources,
                 identifiers=result.identifiers,
             )
+            progress.set_counts(metadata_changed=len(journal["metadata_fields"]))
 
         progress.advance()
 

@@ -324,7 +324,6 @@ def test_sync_batch_cancel_or_bug_does_not_publish_or_remove_sources(
 
     assert all(path.read_bytes() == data for path, data in original.items())
     assert not (options.dst / "catalogue.json").exists()
-    assert not (options.dst / ".icat.lock").exists()
     assert http.cancelled.is_set()
     journal = json.loads(next(options.logs.rglob("journal.json")).read_text())
     assert journal["failed_stage"] == "metadata"

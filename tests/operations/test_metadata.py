@@ -149,11 +149,11 @@ def test_bad_indexed_rom_is_preserved_while_other_games_continue(
     snapshots = [record.icat_progress for record in caplog.records if hasattr(record, "icat_progress")]
     assert snapshots[-1].status == "complete_with_skips"
     assert snapshots[-1].inventory.skipped_images == 1
+    assert snapshots[-1].inventory.metadata_changed == result.updated_existing + result.updated_new
     assert snapshots[-1].percent == 100
     validation = next(step for step in snapshots[-1].steps if step.step.key == "validate")
     assert validation.completed == validation.total
     assert "COMPLETED WITH SKIPS · exit 3" in caplog.text
-    assert not (options.dst / ".icat.lock").exists()
     assert not list(options.dst.glob(".icat-stage-*"))
 
 

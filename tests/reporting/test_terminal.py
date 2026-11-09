@@ -220,6 +220,40 @@ def test_rich_uses_one_provider_bar_instead_of_overall_plan_bar(snapshot: Progre
     assert "0/10 games" not in text and "Plan" not in text
 
 
+@pytest.mark.parametrize("mode", ["plain", "rich"])
+def test_metadata_progress_shows_lookups_and_prepared_updates_without_source_counters(
+    mode: str, snapshot: ProgressSnapshot,
+) -> None:
+    output = StringIO()
+    handler = PlainProgressHandler(output) if mode == "plain" else RichProgressHandler(output, Diagnostics())
+    metadata = StepProgress(Step("metadata", "Fetch metadata", "games"), "running", 5, 8374)
+    inventory = RunInventory(0, 0, 8588, skipped_images=214, metadata_changed=12)
+    handler.handle(create_progress_record(replace(snapshot, steps=(metadata,), inventory=inventory)))
+
+    if isinstance(handler, RichProgressHandler):
+        Console(file=output, width=200, color_system=None).print(handler.render())
+
+    text = output.getvalue()
+    assert "Catalogue: 8588 records · 214 ROMs skipped" in text
+    assert "Metadata: 8374 lookup candidates · 12 record updates prepared" in text
+    assert "Source:" not in text and "Prepared:" not in text and "Rejected:" not in text
+
+
+@pytest.mark.parametrize("level", [logging.WARNING, logging.ERROR])
+def test_rich_diagnostics_are_not_repeated_in_the_live_panel(snapshot: ProgressSnapshot, level: int) -> None:
+    output = StringIO()
+    handler = RichProgressHandler(output, Diagnostics())
+    handler.handle(create_progress_record(snapshot))
+    message = "Source libretro unavailable: CatalogueError (HTTP status=None)"
+
+    handler.handle(logging.makeLogRecord({"levelno": level, "msg": message}))
+    Console(file=output, width=120, color_system=None).print(handler.render())
+
+    text = output.getvalue()
+    assert text.count(message) == 1
+    assert "Last issue" not in text
+
+
 def test_shortened_names_do_not_merge_warnings_from_distinct_sources() -> None:
     output = StringIO()
     handler = PlainProgressHandler(output)
@@ -267,3 +301,32 @@ def test_plain_fast_work_does_not_print_every_percentage(
     assert "[1/1] Scan" in lines[0] and "0/100" in lines[0]
     assert "confirmed records" in lines[1]
     assert "[1/1] Scan" in lines[2]
+
+
+def test_plain_metadata_counts_are_throttled_and_flushed_at_the_next_step(
+    snapshot: ProgressSnapshot, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def get_monotonic_time() -> float:
+        return 1
+
+    monkeypatch.setattr("icat.reporting.terminal.monotonic", get_monotonic_time)
+    output = StringIO()
+    handler = PlainProgressHandler(output)
+    metadata = StepProgress(Step("metadata", "Fetch metadata", "games"), "running", 0, 100)
+    publish = StepProgress(Step("publish", "Catalogue & verify"))
+    snapshot = replace(snapshot, steps=(metadata, publish), inventory=RunInventory(0, 0, 100))
+
+    for count in range(101):
+        current = replace(metadata, completed=count)
+        inventory = replace(snapshot.inventory, metadata_changed=count)
+        handler.handle(create_progress_record(replace(snapshot, steps=(current, publish), inventory=inventory)))
+
+    handler.handle(create_progress_record(replace(
+        snapshot, index=1, steps=(replace(metadata, completed=100, status="done"), publish),
+        inventory=replace(snapshot.inventory, metadata_changed=100),
+    )))
+
+    lines = output.getvalue().splitlines()
+    assert len(lines) == 4
+    assert "0 record updates prepared" in lines[1]
+    assert "100 record updates prepared" in lines[-1]

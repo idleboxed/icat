@@ -175,6 +175,7 @@ def validate_existing_images(session: Session) -> None:
     if not os.path.samestat(root_stat, image_root.stat()):
         raise CatalogueError("Image directory changed during validation", path=image_root)
 
+    progress.set_counts(metadata_changed=len(journal["metadata_fields"]))
     session.identity_cache.save()
 
 
@@ -229,6 +230,7 @@ def apply_metadata(session: Session, digest: str, result: Metadata) -> None:
 
         if changed:
             session.operation.record_metadata_changes(digest, changed, result.sources, identifiers=result.identifiers)
+            session.progress.set_counts(metadata_changed=len(session.operation.data["metadata_fields"]))
 
         entry.update(proposed)
 

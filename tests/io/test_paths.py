@@ -145,7 +145,6 @@ def test_sync_reuses_renamed_layout_for_publish_readback_and_cleanup(
         "IMAGES_DIR": "cartridges",
         "THUMBS_DIR": "previews",
         "JOURNAL_FILE": "report.json",
-        "LOCK_FILE": ".import.lock",
         "STAGING_PREFIX": ".import-stage-",
     }.items():
         monkeypatch.setattr(paths, name, value)

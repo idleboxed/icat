@@ -61,7 +61,6 @@ def test_move_publishes_sharded_catalogue_before_deleting_sources(options: Optio
     assert (options.dst / "images" / entry["image"]).read_bytes() == nes
     assert not source.exists()
     assert (options.src / "readme.txt").exists()
-    assert not (options.dst / ".icat.lock").exists()
     assert not list(options.dst.glob(".icat-stage-*"))
     journal = json.loads(next(options.logs.rglob("journal.json")).read_text())
     assert journal["state"] == "complete"
@@ -122,6 +121,7 @@ def test_move_has_durable_per_source_intents_after_verified_publication(
     def check_and_unlink(path: Path, *args: Any, **kwargs: Any) -> None:
 
         if path == source:
+            assert {item.name for item in options.dst.iterdir()} == {"catalogue.json", "images", "thumbs"}
             entry = decode((options.dst / "catalogue.json").read_bytes())[0]
             assert (options.dst / "images" / entry["image"]).read_bytes() == nes
             log = next(options.logs.rglob("removals.jsonl"))
@@ -275,7 +275,7 @@ def test_bad_zip_container_is_rejected_without_stopping_later_sources(
 
 
 @pytest.mark.parametrize(
-    "failure", [OSError("disk full"), CatalogueError("Source changed"), RuntimeError("bug")]
+    "failure", [OSError("disk full"), CatalogueError("Source changed"), RuntimeError("bug"), KeyboardInterrupt()]
 )
 def test_fatal_staging_errors_are_not_misreported_as_rejected_roms(
     options: Options, provider: Any, nes: bytes, monkeypatch: pytest.MonkeyPatch, failure: BaseException,
@@ -288,11 +288,12 @@ def test_fatal_staging_errors_are_not_misreported_as_rejected_roms(
 
     monkeypatch.setattr("icat.operations.imports.stage_source", fail)
 
-    with pytest.raises(type(failure), match=f"{failure}"):
+    with pytest.raises(type(failure), match=re.escape(f"{failure}") or "^$"):
         run(replace(options, move_roms=True), provider)
 
     assert source.read_bytes() == nes
     assert not (options.dst / "catalogue.json").exists()
+    assert not list(options.dst.glob(".icat-stage-*"))
     journal = json.loads(next(options.logs.rglob("journal.json")).read_bytes())
     assert journal["rejected_sources"] == []
 
@@ -337,7 +338,6 @@ def test_publish_failure_or_cancel_preserves_inputs(
 
     assert (options.src / "a.nes").read_bytes() == nes
     assert not (options.dst / "catalogue.json").exists()
-    assert not (options.dst / ".icat.lock").exists()
     assert not list(options.dst.glob(".icat-stage-*"))
     monkeypatch.setattr(publication, "write_atomic", original)
     assert run(options, provider).removed == 1
@@ -392,7 +392,7 @@ def test_invalid_remote_fields_do_not_poison_catalogue(
     assert entry["players"] is None
 
 
-@pytest.mark.parametrize("path", ["overlap", "symlink", "locked"])
+@pytest.mark.parametrize("path", ["overlap", "symlink"])
 def test_unsafe_destination_fails(options: Options, provider: Any, nes: bytes, path: str) -> None:
     source = options.src / "a.nes"
     source.write_bytes(nes)
@@ -400,17 +400,38 @@ def test_unsafe_destination_fails(options: Options, provider: Any, nes: bytes, p
     if path == "overlap":
         options = replace(options, dst=options.src / "games")
 
-    elif path == "symlink":
+    else:
         options.dst.symlink_to(options.src, target_is_directory=True)
 
-    else:
-        options.dst.mkdir()
-        (options.dst / ".icat.lock").write_text("existing")
-
-    with pytest.raises(CatalogueError, match="overlap|Symlink|locked"):
+    with pytest.raises(CatalogueError, match="overlap|Symlink"):
         run(options, provider)
 
     assert source.read_bytes() == nes
+
+
+@pytest.mark.parametrize("mode", ["empty_sync", "metadata", "trash"])
+def test_operations_without_source_roms_do_not_create_staging(
+    options: Options, provider: Any, monkeypatch: pytest.MonkeyPatch, mode: str,
+) -> None:
+    options.dst.mkdir()
+    catalogue = options.dst / "catalogue.json"
+    catalogue.write_bytes(b'{"games":[]}\n')
+    (options.src / "readme.txt").write_text("Not a ROM", encoding="utf-8")
+    selected = replace(
+        options, src=options.src if mode == "empty_sync" else None,
+        trash_only=mode == "trash", trash_reset=mode == "trash",
+    )
+
+    def forbid_staging(*args: Any, **kwargs: Any) -> None:
+        pytest.fail("Operations without source ROMs must not create staging")
+
+    monkeypatch.setattr("icat.operations.session.tempfile.TemporaryDirectory", forbid_staging)
+
+    result = run(selected, provider)
+
+    assert result.total == 0
+    assert decode(catalogue.read_bytes()) == []
+    assert not list(options.dst.glob(".icat-stage-*"))
 
 
 def test_existing_catalogue_ignores_removed_version_and_unknown_keys(
@@ -624,7 +645,7 @@ def test_network_failure_details_survive_in_json_and_other_roms_continue(
 
 @pytest.mark.parametrize("failure", [OSError("secret failure detail"), KeyboardInterrupt()])
 def test_final_failure_and_cancel_are_recorded_with_the_failed_stage(
-    options: Options, nes: bytes, failure: BaseException,
+    options: Options, provider: Any, nes: bytes, failure: BaseException,
 ) -> None:
     (options.src / "a.nes").write_bytes(nes)
 
@@ -645,6 +666,8 @@ def test_final_failure_and_cancel_are_recorded_with_the_failed_stage(
     assert doc["finished_at"]
     assert "secret failure detail" not in path.read_text()
     assert (options.src / "a.nes").read_bytes() == nes
+    assert not list(options.dst.glob(".icat-stage-*"))
+    assert run(options, provider).total == 1
 
 
 def test_source_skip_reasons_are_journaled_even_when_logging_is_disabled(

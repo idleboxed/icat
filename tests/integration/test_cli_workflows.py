@@ -104,7 +104,6 @@ def test_standalone_trash_never_imports_or_fetches_metadata(
         assert decode((options.dst / "catalogue.json").read_bytes()) == existing_catalogue
         assert json.loads(prefs.read_bytes()) == {**document, "trash": []}
 
-    assert not (options.dst / ".icat.lock").exists()
     assert not list(options.dst.glob(".icat-stage-*"))
     assert len(list((options.logs / f"trash-{action}").glob("*/journal.json"))) == 1
 
@@ -217,7 +216,6 @@ def test_standalone_trash_does_not_announce_success_before_final_checkpoint(
     def fail_final(journal: RunJournal, state: str, *, force: bool = False) -> None:
 
         if force and state == "complete":
-            assert not (options.dst / ".icat.lock").exists()
             raise OSError("Synthetic final checkpoint failure")
 
         return original(journal, state, force=force)

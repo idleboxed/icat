@@ -112,7 +112,6 @@ def test_sync_plan_accounts_for_options_and_empty_work(
     }
     assert final.inventory.source_files == 0
     assert final.inventory.catalogue_entries == 0
-    assert not (options.dst / ".icat.lock").exists()
 
 
 def test_inventory_tracks_confirmed_index_not_prepared_games(
@@ -155,7 +154,6 @@ def test_success_waits_for_final_journal_and_resource_cleanup(
 
         if force and state == "complete":
             assert all(event.percent < 100 for event in get_snapshots(progress_records))
-            assert not (options.dst / ".icat.lock").exists()
             assert not list(options.dst.glob(".icat-stage-*"))
             final_checks.append(state)
 

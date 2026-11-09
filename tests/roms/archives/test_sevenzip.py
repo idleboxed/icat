@@ -366,7 +366,6 @@ def test_corrupt_7z_is_retained_and_cli_continues_with_later_roms(
     assert (options.dst / "images" / entries[0]["image"]).read_bytes() == nes
     assert not later.exists()
     assert not list(options.dst.glob(".icat-stage-*"))
-    assert not (options.dst / ".icat.lock").exists()
 
 
 @pytest.mark.parametrize("failure", [OSError("disk full"), KeyboardInterrupt()])
@@ -392,7 +391,6 @@ def test_extraction_failure_or_cancellation_retains_all_sources_and_cleans_stagi
     assert raw.read_bytes() == nes
     assert not (options.dst / "catalogue.json").exists()
     assert not list(options.dst.glob(".icat-stage-*"))
-    assert not (options.dst / ".icat.lock").exists()
     assert not list((options.dst / "images").iterdir())
 
 

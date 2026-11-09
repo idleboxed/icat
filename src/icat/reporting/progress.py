@@ -56,6 +56,7 @@ class RunInventory:
     rejected_sources: int = 0
     skipped_sources: int = 0
     skipped_images: int = 0
+    metadata_changed: int = 0
 
 
 @dataclass(frozen=True)
@@ -166,6 +167,7 @@ class RunProgress:
         catalogue_entries: int | None = None, prepared_games: int | None = None,
         duplicate_sources: int | None = None, rejected_sources: int | None = None,
         skipped_sources: int | None = None, skipped_images: int | None = None,
+        metadata_changed: int | None = None,
     ) -> None:
         """Update known inventory counts without clearing values omitted by the caller."""
         changes = {
@@ -175,6 +177,7 @@ class RunProgress:
                 ("prepared_games", prepared_games), ("duplicate_sources", duplicate_sources),
                 ("rejected_sources", rejected_sources), ("skipped_sources", skipped_sources),
                 ("skipped_images", skipped_images),
+                ("metadata_changed", metadata_changed),
             ) if value is not None
         }
 
