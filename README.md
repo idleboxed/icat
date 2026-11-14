@@ -11,14 +11,11 @@ The PyPI distribution is `iboxed-icat`; the Python package and CLI command are `
 
 ## Install
 
-Requires Python 3.12+. For development, use [makeapp](https://pypi.org/project/makeapp/)
-from the source checkout:
-
 ```bash
-cd /path/to/icat
-ma tools
-ma up --tool
+uv tool install iboxed-icat
 ```
+
+Requires Python 3.12+.
 
 CHD imports need `libchdr`; some older 7z archives need a system `7z` executable.
 See the [quickstart](docs/10_quickstart.md) for setup.
